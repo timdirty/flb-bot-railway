@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 環境變數
+.env
+.env.local
+.env.production
+.env.staging
+
+# 敏感檔案
+key.json
+admin_config.json
+*.key
+*.pem
+*.p12
+
+# 日誌檔案
+*.log
+logs/
+
+# 測試檔案
+test_*.py
+*_test.py
+comprehensive_test.py
+debug_*.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 作業系統
+.DS_Store
+Thumbs.db
+
+# 臨時檔案
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Railway
+.railway/

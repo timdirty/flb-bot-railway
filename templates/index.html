@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>老師自動通知系統 - 管理介面</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .status-card {
+            transition: all 0.3s ease;
+        }
+        .status-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .status-running {
+            border-left: 4px solid #28a745;
+        }
+        .status-stopped {
+            border-left: 4px solid #dc3545;
+        }
+        .btn-action {
+            margin: 5px;
+        }
+        .log-container {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .teacher-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: white;
+        }
+        .calendar-item {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-robot"></i> 老師自動通知系統
+            </span>
+            <span class="navbar-text">
+                <i class="fas fa-clock"></i> <span id="current-time"></span>
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- 系統狀態卡片 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card status-card" id="status-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-server"></i> 系統狀態
+                        </h5>
+                        <span class="badge" id="status-badge">檢查中...</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>運行狀態:</strong> <span id="running-status">檢查中...</span></p>
+                                <p><strong>進程 ID:</strong> <span id="pid">-</span></p>
+                                <p><strong>最後檢查:</strong> <span id="last-check">-</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>總通知數:</strong> <span id="total-notifications">0</span></p>
+                                <p><strong>錯誤次數:</strong> <span id="error-count">0</span></p>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-success btn-action" id="start-btn" onclick="startSystem()">
+                                <i class="fas fa-play"></i> 啟動系統
+                            </button>
+                            <button class="btn btn-danger btn-action" id="stop-btn" onclick="stopSystem()">
+                                <i class="fas fa-stop"></i> 停止系統
+                            </button>
+                            <button class="btn btn-warning btn-action" id="restart-btn" onclick="restartSystem()">
+                                <i class="fas fa-redo"></i> 重啟系統
+                            </button>
+                            <button class="btn btn-info btn-action" onclick="refreshStatus()">
+                                <i class="fas fa-sync"></i> 重新整理
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cog"></i> 快速操作
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary btn-sm w-100 mb-2" onclick="testNotification()">
+                            <i class="fas fa-paper-plane"></i> 發送測試通知
+                        </button>
+                        <button class="btn btn-success btn-sm w-100 mb-2" onclick="testDailySummary()">
+                            <i class="fas fa-sun"></i> 測試每日摘要
+                        </button>
+                        <button class="btn btn-warning btn-sm w-100 mb-2" onclick="testCourseReminder()">
+                            <i class="fas fa-bell"></i> 測試課程提醒
+                        </button>
+                        <button class="btn btn-secondary btn-sm w-100 mb-2" onclick="refreshTeachers()">
+                            <i class="fas fa-users"></i> 重新載入老師資料
+                        </button>
+                        <button class="btn btn-info btn-sm w-100" onclick="refreshCalendars()">
+                            <i class="fas fa-calendar"></i> 重新載入行事曆
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 標籤頁 -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="teachers-tab" data-bs-toggle="tab" data-bs-target="#teachers" type="button" role="tab">
+                    <i class="fas fa-users"></i> 老師資料
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="calendars-tab" data-bs-toggle="tab" data-bs-target="#calendars" type="button" role="tab">
+                    <i class="fas fa-calendar"></i> 行事曆
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">
+                    <i class="fas fa-file-alt"></i> 系統日誌
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="events-tab" data-bs-toggle="tab" data-bs-target="#events" type="button" role="tab">
+                    <i class="fas fa-calendar-check"></i> 行事曆事件
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab">
+                    <i class="fas fa-user-shield"></i> 管理員設定
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabsContent">
+            <!-- 老師資料標籤頁 -->
+            <div class="tab-pane fade show active" id="teachers" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users"></i> 老師資料管理
+                        </h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshTeachers()">
+                            <i class="fas fa-sync"></i> 重新載入
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="teachers-list">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">載入中...</span>
+                                </div>
+                                <p class="mt-2">載入老師資料中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 行事曆標籤頁 -->
+            <div class="tab-pane fade" id="calendars" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar"></i> 行事曆管理
+                        </h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshCalendars()">
+                            <i class="fas fa-sync"></i> 重新載入
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="calendars-list">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">載入中...</span>
+                                </div>
+                                <p class="mt-2">載入行事曆中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系統日誌標籤頁 -->
+            <div class="tab-pane fade" id="logs" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-alt"></i> 系統日誌
+                        </h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshLogs()">
+                            <i class="fas fa-sync"></i> 重新載入
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="log-container" id="logs-content">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">載入中...</span>
+                                </div>
+                                <p class="mt-2">載入日誌中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 行事曆事件標籤頁 -->
+            <div class="tab-pane fade" id="events" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-check"></i> 行事曆事件查詢
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- 日期篩選器 -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="start-date" class="form-label">開始日期</label>
+                                <input type="date" class="form-control" id="start-date">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="end-date" class="form-label">結束日期</label>
+                                <input type="date" class="form-control" id="end-date">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button class="btn btn-primary me-2" onclick="loadCalendarEvents()">
+                                    <i class="fas fa-search"></i> 查詢事件
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="resetDateFilter()">
+                                    <i class="fas fa-undo"></i> 重置
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 統計資訊 -->
+                        <div class="row mb-3" id="events-stats" style="display: none;">
+                            <div class="col-md-12">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span id="events-count">0</span> 個事件 | 
+                                    日期範圍: <span id="date-range">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 事件列表 -->
+                        <div id="events-list">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">載入中...</span>
+                                </div>
+                                <p class="mt-2">請選擇日期範圍並點擊查詢</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 管理員設定標籤頁 -->
+            <div class="tab-pane fade" id="admin" role="tabpanel">
+                <!-- 管理員列表 -->
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users"></i> 管理員列表
+                        </h5>
+                        <button class="btn btn-success btn-sm" onclick="showAddAdminModal()">
+                            <i class="fas fa-plus"></i> 新增管理員
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="admins-list">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">載入中...</span>
+                                </div>
+                                <p class="mt-2">載入管理員資料中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 全域通知設定 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cog"></i> 全域通知設定
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="global-daily-summary" checked>
+                                    <label class="form-check-label" for="global-daily-summary">
+                                        每日課程摘要
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="global-course-reminders" checked>
+                                    <label class="form-check-label" for="global-course-reminders">
+                                        課程提醒通知
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="global-system-alerts" checked>
+                                    <label class="form-check-label" for="global-system-alerts">
+                                        系統警報
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="global-error-notifications" checked>
+                                    <label class="form-check-label" for="global-error-notifications">
+                                        錯誤通知
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-primary" onclick="saveGlobalConfig()">
+                                <i class="fas fa-save"></i> 儲存全域設定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 管理員通知測試 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-paper-plane"></i> 管理員通知測試
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label for="notification-message" class="form-label">通知訊息</label>
+                                    <textarea class="form-control" id="notification-message" rows="3" placeholder="請輸入要發送的通知訊息..."></textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="notification-type" class="form-label">通知類型</label>
+                                    <select class="form-select" id="notification-type">
+                                        <option value="info">一般資訊</option>
+                                        <option value="success">成功通知</option>
+                                        <option value="warning">警告通知</option>
+                                        <option value="error">錯誤通知</option>
+                                        <option value="system">系統通知</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="sendAdminNotification()">
+                            <i class="fas fa-paper-plane"></i> 發送通知
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知 Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notification-toast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-bell text-primary me-2"></i>
+                <strong class="me-auto">系統通知</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toast-message">
+                操作完成
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增管理員模態視窗 -->
+    <div class="modal fade" id="addAdminModal" tabindex="-1" aria-labelledby="addAdminModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addAdminModalLabel">
+                        <i class="fas fa-user-plus"></i> 新增管理員
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-admin-form">
+                        <div class="mb-3">
+                            <label for="new-admin-name" class="form-label">管理員名稱</label>
+                            <input type="text" class="form-control" id="new-admin-name" placeholder="請輸入管理員名稱" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new-admin-user-id" class="form-label">管理員 User ID</label>
+                            <input type="text" class="form-control" id="new-admin-user-id" placeholder="請輸入 LINE User ID" required>
+                        </div>
+                        <div class="mb-3">
+                            <h6><i class="fas fa-bell"></i> 通知設定</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="new-daily-summary" checked>
+                                        <label class="form-check-label" for="new-daily-summary">
+                                            每日課程摘要
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="new-course-reminders" checked>
+                                        <label class="form-check-label" for="new-course-reminders">
+                                            課程提醒通知
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="new-system-alerts" checked>
+                                        <label class="form-check-label" for="new-system-alerts">
+                                            系統警報
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="new-error-notifications" checked>
+                                        <label class="form-check-label" for="new-error-notifications">
+                                            錯誤通知
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="addAdmin()">
+                        <i class="fas fa-plus"></i> 新增管理員
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯管理員模態視窗 -->
+    <div class="modal fade" id="editAdminModal" tabindex="-1" aria-labelledby="editAdminModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editAdminModalLabel">
+                        <i class="fas fa-user-edit"></i> 編輯管理員
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-admin-form">
+                        <input type="hidden" id="edit-admin-user-id">
+                        <div class="mb-3">
+                            <label for="edit-admin-name" class="form-label">管理員名稱</label>
+                            <input type="text" class="form-control" id="edit-admin-name" placeholder="請輸入管理員名稱" required>
+                        </div>
+                        <div class="mb-3">
+                            <h6><i class="fas fa-bell"></i> 通知設定</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="edit-daily-summary">
+                                        <label class="form-check-label" for="edit-daily-summary">
+                                            每日課程摘要
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="edit-course-reminders">
+                                        <label class="form-check-label" for="edit-course-reminders">
+                                            課程提醒通知
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="edit-system-alerts">
+                                        <label class="form-check-label" for="edit-system-alerts">
+                                            系統警報
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="edit-error-notifications">
+                                        <label class="form-check-label" for="edit-error-notifications">
+                                            錯誤通知
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger me-auto" onclick="deleteAdmin()">
+                        <i class="fas fa-trash"></i> 刪除管理員
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="updateAdmin()">
+                        <i class="fas fa-save"></i> 儲存變更
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全域變數
+        let statusInterval;
+        let timeInterval;
+
+        // 頁面載入完成
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCurrentTime();
+            refreshStatus();
+            refreshTeachers();
+            refreshCalendars();
+            refreshLogs();
+            loadAdminConfig(); // 載入管理員設定
+            initializeDateFilter(); // 初始化日期篩選器
+            
+            // 設定定時更新
+            statusInterval = setInterval(refreshStatus, 5000); // 每5秒更新狀態
+            timeInterval = setInterval(updateCurrentTime, 1000); // 每秒更新時間
+        });
+
+        // 更新當前時間
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString('zh-TW');
+        }
+
+        // 重新整理系統狀態
+        async function refreshStatus() {
+            const btn = event?.target;
+            if (btn) {
+                const originalText = btn.innerHTML;
+                try {
+                    // 顯示載入狀態
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 更新中...';
+                    
+                    const response = await fetch('/api/status');
+                    const data = await response.json();
+                    
+                    updateStatusDisplay(data);
+                    showNotification('系統狀態已更新', 'success');
+                } catch (error) {
+                    console.error('獲取狀態失敗:', error);
+                    showNotification('獲取系統狀態失敗', 'error');
+                } finally {
+                    // 恢復按鈕狀態
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } else {
+                // 自動更新時不顯示載入動畫
+                try {
+                    const response = await fetch('/api/status');
+                    const data = await response.json();
+                    updateStatusDisplay(data);
+                } catch (error) {
+                    console.error('獲取狀態失敗:', error);
+                }
+            }
+        }
+
+        // 更新狀態顯示
+        function updateStatusDisplay(status) {
+            const statusCard = document.getElementById('status-card');
+            const statusBadge = document.getElementById('status-badge');
+            const runningStatus = document.getElementById('running-status');
+            const pid = document.getElementById('pid');
+            const lastCheck = document.getElementById('last-check');
+            const totalNotifications = document.getElementById('total-notifications');
+            const errorCount = document.getElementById('error-count');
+
+            if (status.running) {
+                statusCard.className = 'card status-card status-running';
+                statusBadge.className = 'badge bg-success';
+                statusBadge.textContent = '運行中';
+                runningStatus.textContent = '運行中';
+                runningStatus.className = 'text-success';
+            } else {
+                statusCard.className = 'card status-card status-stopped';
+                statusBadge.className = 'badge bg-danger';
+                statusBadge.textContent = '已停止';
+                runningStatus.textContent = '已停止';
+                runningStatus.className = 'text-danger';
+            }
+
+            pid.textContent = status.pid || '-';
+            lastCheck.textContent = new Date().toLocaleString('zh-TW');
+            totalNotifications.textContent = status.total_notifications || 0;
+            errorCount.textContent = status.error_count || 0;
+        }
+
+        // 啟動系統
+        async function startSystem() {
+            const btn = document.getElementById('start-btn');
+            const originalText = btn.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 啟動中...';
+                
+                const response = await fetch('/api/start', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    refreshStatus();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('啟動系統失敗:', error);
+                showNotification('啟動系統失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 停止系統
+        async function stopSystem() {
+            const btn = document.getElementById('stop-btn');
+            const originalText = btn.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 停止中...';
+                
+                const response = await fetch('/api/stop', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    refreshStatus();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('停止系統失敗:', error);
+                showNotification('停止系統失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 重啟系統
+        async function restartSystem() {
+            const btn = document.getElementById('restart-btn');
+            const originalText = btn.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 重啟中...';
+                
+                const response = await fetch('/api/restart', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    refreshStatus();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('重啟系統失敗:', error);
+                showNotification('重啟系統失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 發送測試通知
+        async function testNotification() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 發送中...';
+                
+                const response = await fetch('/api/test_notification', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('發送測試通知失敗:', error);
+                showNotification('發送測試通知失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 測試每日摘要功能
+        async function testDailySummary() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 測試中...';
+                
+                const response = await fetch('/api/test_daily_summary', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('測試每日摘要失敗:', error);
+                showNotification('測試每日摘要失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 測試課程提醒功能
+        async function testCourseReminder() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 測試中...';
+                
+                const response = await fetch('/api/test_course_reminder', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('測試課程提醒失敗:', error);
+                showNotification('測試課程提醒失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 重新載入老師資料
+        async function refreshTeachers() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            const container = document.getElementById('teachers-list');
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 載入中...';
+                container.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">載入中...</span></div><p class="mt-2">載入老師資料中...</p></div>';
+                
+                const response = await fetch('/api/teachers');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayTeachers(data.data);
+                    showNotification('老師資料載入成功', 'success');
+                } else {
+                    container.innerHTML = `<div class="alert alert-danger">載入失敗: ${data.message}</div>`;
+                    showNotification('載入老師資料失敗', 'error');
+                }
+            } catch (error) {
+                console.error('載入老師資料失敗:', error);
+                container.innerHTML = `<div class="alert alert-danger">載入失敗: ${error.message}</div>`;
+                showNotification('載入老師資料失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 顯示老師資料
+        function displayTeachers(teachers) {
+            const container = document.getElementById('teachers-list');
+            
+            if (!teachers || typeof teachers !== 'object') {
+                container.innerHTML = '<div class="alert alert-info">沒有找到老師資料</div>';
+                return;
+            }
+
+            // 將物件轉換為陣列
+            const teacherArray = Object.entries(teachers).map(([name, data]) => {
+                if (typeof data === 'string') {
+                    // 舊格式：{name: user_id}
+                    return {
+                        name: name,
+                        user_id: data,
+                        has_user_id: !!data,
+                        link: '',
+                        web_api: '',
+                        report_api: ''
+                    };
+                } else {
+                    // 新格式：{name: {name, user_id, has_user_id, link, web_api, report_api}}
+                    return {
+                        name: data.name || name,
+                        user_id: data.user_id || '',
+                        has_user_id: data.has_user_id || false,
+                        link: data.link || '',
+                        web_api: data.web_api || '',
+                        report_api: data.report_api || ''
+                    };
+                }
+            });
+
+            if (teacherArray.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">沒有找到老師資料</div>';
+                return;
+            }
+
+            // 按狀態排序：有 user_id 的在前
+            teacherArray.sort((a, b) => {
+                if (a.has_user_id && !b.has_user_id) return -1;
+                if (!a.has_user_id && b.has_user_id) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            let html = '';
+            teacherArray.forEach(teacher => {
+                const statusBadge = teacher.has_user_id ? 
+                    '<span class="badge bg-success">已設定</span>' : 
+                    '<span class="badge bg-warning">未設定</span>';
+                
+                const linkButton = teacher.link ? 
+                    `<a href="${teacher.link}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-external-link-alt"></i> 查看表格
+                    </a>` : '';
+                
+                html += `
+                    <div class="teacher-card">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6><i class="fas fa-user"></i> ${teacher.name || '未知'}</h6>
+                                <p class="mb-1"><strong>User ID:</strong> ${teacher.user_id || '未設定'}</p>
+                                <p class="mb-1"><strong>狀態:</strong> ${statusBadge}</p>
+                                ${teacher.web_api ? `<p class="mb-1"><strong>Web API:</strong> <small class="text-muted">已設定</small></p>` : ''}
+                                ${teacher.report_api ? `<p class="mb-1"><strong>Report API:</strong> <small class="text-muted">已設定</small></p>` : ''}
+                            </div>
+                            <div class="col-md-4 text-end">
+                                ${linkButton}
+                                <p class="mb-1 mt-2"><small class="text-muted">最後更新: ${new Date().toLocaleString('zh-TW')}</small></p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 重新載入行事曆
+        async function refreshCalendars() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            const container = document.getElementById('calendars-list');
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 載入中...';
+                container.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">載入中...</span></div><p class="mt-2">載入行事曆中...</p></div>';
+                
+                const response = await fetch('/api/calendars');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayCalendars(data.data);
+                    showNotification('行事曆載入成功', 'success');
+                } else {
+                    container.innerHTML = `<div class="alert alert-danger">載入失敗: ${data.message}</div>`;
+                    showNotification('載入行事曆失敗', 'error');
+                }
+            } catch (error) {
+                console.error('載入行事曆失敗:', error);
+                container.innerHTML = `<div class="alert alert-danger">載入失敗: ${error.message}</div>`;
+                showNotification('載入行事曆失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 顯示行事曆
+        function displayCalendars(calendars) {
+            const container = document.getElementById('calendars-list');
+            
+            if (!calendars || calendars.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">沒有找到行事曆</div>';
+                return;
+            }
+
+            let html = '';
+            calendars.forEach(calendar => {
+                html += `
+                    <div class="calendar-item">
+                        <h6><i class="fas fa-calendar"></i> ${calendar.name}</h6>
+                        <p class="mb-0 text-muted small">${calendar.url}</p>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 重新載入日誌
+        async function refreshLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayLogs(data.data);
+                } else {
+                    document.getElementById('logs-content').innerHTML = 
+                        `<div class="alert alert-danger">載入失敗: ${data.message}</div>`;
+                }
+            } catch (error) {
+                console.error('載入日誌失敗:', error);
+                document.getElementById('logs-content').innerHTML = 
+                    `<div class="alert alert-danger">載入失敗: ${error.message}</div>`;
+            }
+        }
+
+        // 顯示日誌
+        function displayLogs(logs) {
+            const container = document.getElementById('logs-content');
+            
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="text-muted">沒有日誌記錄</div>';
+                return;
+            }
+
+            let html = '';
+            logs.forEach(log => {
+                html += `<div class="mb-1">${log}</div>`;
+            });
+
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // 顯示通知
+        function showNotification(message, type = 'info') {
+            const toast = document.getElementById('notification-toast');
+            const toastMessage = document.getElementById('toast-message');
+            
+            toastMessage.textContent = message;
+            
+            // 設定樣式
+            const toastHeader = toast.querySelector('.toast-header');
+            const icon = toastHeader.querySelector('i');
+            
+            if (type === 'success') {
+                icon.className = 'fas fa-check-circle text-success me-2';
+            } else if (type === 'error') {
+                icon.className = 'fas fa-exclamation-circle text-danger me-2';
+            } else {
+                icon.className = 'fas fa-info-circle text-primary me-2';
+            }
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+
+        // 載入管理員設定
+        async function loadAdminConfig() {
+            try {
+                const response = await fetch('/api/admin_config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const config = data.data;
+                    displayAdmins(config.admins || []);
+                    loadGlobalConfig(config.global_notifications || {});
+                } else {
+                    showNotification('載入管理員設定失敗', 'error');
+                }
+            } catch (error) {
+                console.error('載入管理員設定失敗:', error);
+                showNotification('載入管理員設定失敗', 'error');
+            }
+        }
+
+        // 顯示管理員列表
+        function displayAdmins(admins) {
+            const container = document.getElementById('admins-list');
+            if (!admins || admins.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">目前沒有管理員</div>';
+                return;
+            }
+
+            let html = '';
+            admins.forEach(admin => {
+                const notifications = admin.notifications || {};
+                const notificationStatus = Object.values(notifications).filter(Boolean).length;
+                const totalNotifications = Object.keys(notifications).length;
+                
+                html += `
+                    <div class="admin-card border rounded p-3 mb-3">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h6><i class="fas fa-user-shield"></i> ${admin.admin_name || '未知'}</h6>
+                                <p class="mb-1"><strong>User ID:</strong> <code>${admin.admin_user_id || '未設定'}</code></p>
+                                <p class="mb-1"><strong>通知設定:</strong> ${notificationStatus}/${totalNotifications} 項啟用</p>
+                                <div class="mt-2">
+                                    ${notifications.daily_summary ? '<span class="badge bg-primary me-1">每日摘要</span>' : ''}
+                                    ${notifications.course_reminders ? '<span class="badge bg-success me-1">課程提醒</span>' : ''}
+                                    ${notifications.system_alerts ? '<span class="badge bg-warning me-1">系統警報</span>' : ''}
+                                    ${notifications.error_notifications ? '<span class="badge bg-danger me-1">錯誤通知</span>' : ''}
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button class="btn btn-sm btn-outline-primary me-2" onclick="editAdmin('${admin.admin_user_id}')">
+                                    <i class="fas fa-edit"></i> 編輯
+                                </button>
+                                <button class="btn btn-sm btn-outline-success" onclick="testAdminNotification('${admin.admin_user_id}', '${admin.admin_name}')">
+                                    <i class="fas fa-paper-plane"></i> 測試
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // 載入全域設定
+        function loadGlobalConfig(globalNotifications) {
+            document.getElementById('global-daily-summary').checked = globalNotifications.daily_summary !== false;
+            document.getElementById('global-course-reminders').checked = globalNotifications.course_reminders !== false;
+            document.getElementById('global-system-alerts').checked = globalNotifications.system_alerts !== false;
+            document.getElementById('global-error-notifications').checked = globalNotifications.error_notifications !== false;
+        }
+
+        // 顯示新增管理員模態視窗
+        function showAddAdminModal() {
+            // 清空表單
+            document.getElementById('new-admin-name').value = '';
+            document.getElementById('new-admin-user-id').value = '';
+            document.getElementById('new-daily-summary').checked = true;
+            document.getElementById('new-course-reminders').checked = true;
+            document.getElementById('new-system-alerts').checked = true;
+            document.getElementById('new-error-notifications').checked = true;
+            
+            // 顯示模態視窗
+            const modal = new bootstrap.Modal(document.getElementById('addAdminModal'));
+            modal.show();
+        }
+
+        // 新增管理員
+        async function addAdmin() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 新增中...';
+                
+                const config = {
+                    action: "add_admin",
+                    admin_name: document.getElementById('new-admin-name').value.trim(),
+                    admin_user_id: document.getElementById('new-admin-user-id').value.trim(),
+                    notifications: {
+                        daily_summary: document.getElementById('new-daily-summary').checked,
+                        course_reminders: document.getElementById('new-course-reminders').checked,
+                        system_alerts: document.getElementById('new-system-alerts').checked,
+                        error_notifications: document.getElementById('new-error-notifications').checked
+                    }
+                };
+                
+                const response = await fetch('/api/admin_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('管理員已新增', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('addAdminModal')).hide();
+                    loadAdminConfig(); // 重新載入管理員列表
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('新增管理員失敗:', error);
+                showNotification('新增管理員失敗', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 編輯管理員
+        function editAdmin(adminUserId) {
+            // 先載入管理員資料
+            fetch('/api/admin_config')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const admin = data.data.admins.find(a => a.admin_user_id === adminUserId);
+                        if (admin) {
+                            document.getElementById('edit-admin-user-id').value = admin.admin_user_id;
+                            document.getElementById('edit-admin-name').value = admin.admin_name;
+                            document.getElementById('edit-daily-summary').checked = admin.notifications.daily_summary !== false;
+                            document.getElementById('edit-course-reminders').checked = admin.notifications.course_reminders !== false;
+                            document.getElementById('edit-system-alerts').checked = admin.notifications.system_alerts !== false;
+                            document.getElementById('edit-error-notifications').checked = admin.notifications.error_notifications !== false;
+                            
+                            const modal = new bootstrap.Modal(document.getElementById('editAdminModal'));
+                            modal.show();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('載入管理員資料失敗:', error);
+                    showNotification('載入管理員資料失敗', 'error');
+                });
+        }
+
+        // 更新管理員
+        async function updateAdmin() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 更新中...';
+                
+                const config = {
+                    action: "update_admin",
+                    admin_user_id: document.getElementById('edit-admin-user-id').value.trim(),
+                    admin_name: document.getElementById('edit-admin-name').value.trim(),
+                    notifications: {
+                        daily_summary: document.getElementById('edit-daily-summary').checked,
+                        course_reminders: document.getElementById('edit-course-reminders').checked,
+                        system_alerts: document.getElementById('edit-system-alerts').checked,
+                        error_notifications: document.getElementById('edit-error-notifications').checked
+                    }
+                };
+                
+                const response = await fetch('/api/admin_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('管理員已更新', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editAdminModal')).hide();
+                    loadAdminConfig(); // 重新載入管理員列表
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('更新管理員失敗:', error);
+                showNotification('更新管理員失敗', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 刪除管理員
+        async function deleteAdmin() {
+            if (!confirm('確定要刪除這位管理員嗎？')) {
+                return;
+            }
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 刪除中...';
+                
+                const config = {
+                    action: "delete_admin",
+                    admin_user_id: document.getElementById('edit-admin-user-id').value.trim()
+                };
+                
+                const response = await fetch('/api/admin_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('管理員已刪除', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editAdminModal')).hide();
+                    loadAdminConfig(); // 重新載入管理員列表
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('刪除管理員失敗:', error);
+                showNotification('刪除管理員失敗', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 儲存全域設定
+        async function saveGlobalConfig() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
+                
+                const config = {
+                    action: "update_global",
+                    global_notifications: {
+                        daily_summary: document.getElementById('global-daily-summary').checked,
+                        course_reminders: document.getElementById('global-course-reminders').checked,
+                        system_alerts: document.getElementById('global-system-alerts').checked,
+                        error_notifications: document.getElementById('global-error-notifications').checked
+                    }
+                };
+                
+                const response = await fetch('/api/admin_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('全域設定已儲存', 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('儲存全域設定失敗:', error);
+                showNotification('儲存全域設定失敗', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 測試特定管理員通知
+        async function testAdminNotification(adminUserId, adminName) {
+            const message = `測試通知給 ${adminName}`;
+            const type = "info";
+            
+            try {
+                const response = await fetch('/api/send_admin_notification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        type: type,
+                        target_admin_id: adminUserId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`測試通知已發送給 ${adminName}`, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('發送測試通知失敗:', error);
+                showNotification('發送測試通知失敗', 'error');
+            }
+        }
+
+        // 發送管理員通知
+        async function sendAdminNotification() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            const message = document.getElementById('notification-message').value.trim();
+            const type = document.getElementById('notification-type').value;
+            
+            if (!message) {
+                showNotification('請輸入通知訊息', 'warning');
+                return;
+            }
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 發送中...';
+                
+                const response = await fetch('/api/send_admin_notification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        type: type
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('管理員通知已發送', 'success');
+                    document.getElementById('notification-message').value = ''; // 清空訊息
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('發送管理員通知失敗:', error);
+                showNotification('發送管理員通知失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 初始化日期篩選器
+        function initializeDateFilter() {
+            const today = new Date();
+            const nextWeek = new Date(today);
+            nextWeek.setDate(today.getDate() + 7);
+            
+            document.getElementById('start-date').value = today.toISOString().split('T')[0];
+            document.getElementById('end-date').value = nextWeek.toISOString().split('T')[0];
+        }
+
+        // 載入行事曆事件
+        async function loadCalendarEvents() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            const container = document.getElementById('events-list');
+            const statsDiv = document.getElementById('events-stats');
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 查詢中...';
+                container.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">載入中...</span></div><p class="mt-2">查詢行事曆事件中...</p></div>';
+                statsDiv.style.display = 'none';
+                
+                const startDate = document.getElementById('start-date').value;
+                const endDate = document.getElementById('end-date').value;
+                
+                if (!startDate || !endDate) {
+                    showNotification('請選擇開始和結束日期', 'warning');
+                    return;
+                }
+                
+                if (new Date(startDate) > new Date(endDate)) {
+                    showNotification('開始日期不能晚於結束日期', 'warning');
+                    return;
+                }
+                
+                const url = `/api/calendar_events?start_date=${startDate}&end_date=${endDate}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayCalendarEvents(data.data);
+                    showNotification(`查詢完成，找到 ${data.data.total_count} 個事件`, 'success');
+                } else {
+                    container.innerHTML = `<div class="alert alert-danger">查詢失敗: ${data.message}</div>`;
+                    showNotification('查詢行事曆事件失敗', 'error');
+                }
+            } catch (error) {
+                console.error('查詢行事曆事件失敗:', error);
+                container.innerHTML = `<div class="alert alert-danger">查詢失敗: ${error.message}</div>`;
+                showNotification('查詢行事曆事件失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 顯示行事曆事件
+        function displayCalendarEvents(data) {
+            const container = document.getElementById('events-list');
+            const statsDiv = document.getElementById('events-stats');
+            const eventsCount = document.getElementById('events-count');
+            const dateRange = document.getElementById('date-range');
+            
+            // 更新統計資訊
+            eventsCount.textContent = data.total_count;
+            dateRange.textContent = `${data.date_range.start} 至 ${data.date_range.end}`;
+            statsDiv.style.display = 'block';
+            
+            if (!data.events || data.events.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">在選擇的日期範圍內沒有找到任何事件</div>';
+                return;
+            }
+
+            let html = '';
+            data.events.forEach((event, index) => {
+                const startDate = new Date(event.start_time);
+                const isToday = startDate.toDateString() === new Date().toDateString();
+                const isPast = startDate < new Date();
+                
+                const cardClass = isPast ? 'border-secondary' : (isToday ? 'border-warning' : 'border-primary');
+                const timeBadge = isPast ? 'bg-secondary' : (isToday ? 'bg-warning' : 'bg-primary');
+                
+                html += `
+                    <div class="card mb-3 ${cardClass}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-calendar"></i> ${event.summary}
+                            </h6>
+                            <span class="badge ${timeBadge}">${event.start_time}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong><i class="fas fa-user"></i> 老師:</strong> ${event.teacher}</p>
+                                    <p class="mb-1"><strong><i class="fas fa-clock"></i> 時間:</strong> ${event.start_time}${event.end_time ? ' - ' + event.end_time : ''}</p>
+                                    <p class="mb-1"><strong><i class="fas fa-hourglass-half"></i> 持續時間:</strong> ${event.duration || '未知'}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong><i class="fas fa-calendar-alt"></i> 行事曆:</strong> ${event.calendar}</p>
+                                    ${event.location ? `<p class="mb-1"><strong><i class="fas fa-map-marker-alt"></i> 地點:</strong> ${event.location}</p>` : ''}
+                                    ${event.url ? `<p class="mb-1"><strong><i class="fas fa-link"></i> 連結:</strong> <a href="${event.url}" target="_blank">查看詳情</a></p>` : ''}
+                                </div>
+                            </div>
+                            ${event.description ? `
+                                <div class="mt-2">
+                                    <strong><i class="fas fa-file-text"></i> 描述:</strong>
+                                    <div class="mt-1 p-2 bg-light rounded">
+                                        <small class="text-muted">${event.description.replace(/\n/g, '<br>')}</small>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 重置日期篩選器
+        function resetDateFilter() {
+            initializeDateFilter();
+            document.getElementById('events-list').innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">載入中...</span>
+                    </div>
+                    <p class="mt-2">請選擇日期範圍並點擊查詢</p>
+                </div>
+            `;
+            document.getElementById('events-stats').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
