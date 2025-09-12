@@ -116,3 +116,4 @@ flb_bot/
 - **v1.1** - 新增 Web 管理介面
 - **v1.2** - 移除 webhook 功能，純定時任務模式
 # Force Railway redeploy Fri Sep 12 23:47:34 CST 2025
+# Force Railway redeploy Sat Sep 13 00:34:43 CST 2025
