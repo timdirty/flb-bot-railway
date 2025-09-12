@@ -286,12 +286,8 @@ class TeacherManager:
 
 # 使用範例
 if __name__ == "__main__":
-    # 初始化 Google Sheets 客戶端
-    gc = pygsheets.authorize(service_account_file="key.json")
-    survey_url = "https://docs.google.com/spreadsheets/d/1o8Q9avYfh3rSVvkJruPJy7drh5dQqhA_-icT33jBX8s/"
-    
-    # 建立老師管理器
-    teacher_manager = TeacherManager(gc, survey_url)
+    # 建立老師管理器（使用 Google Apps Script API）
+    teacher_manager = TeacherManager()
     
     # 測試功能
     test_names = ["TIM", "TED", "HANSEN", "EASON", "JAMES", "YOKI", "XIAN", "GILLIAN"]
