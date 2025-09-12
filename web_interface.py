@@ -30,12 +30,15 @@ access_token = "LaeRrV+/XZ6oCJ2ZFzAFlZXHX822l50NxxM2x6vBkuoux4ptr6KjFJcIXL6pNJel
 
 # 初始化
 print("🔍 開始初始化老師管理器...")
-print(f"🔍 環境變數 GOOGLE_CREDENTIALS_JSON 存在: {bool(os.environ.get('GOOGLE_CREDENTIALS_JSON'))}")
 
-# 暫時禁用 Google Sheets 功能，讓系統先運行起來
-print("⚠️ 暫時禁用 Google Sheets 功能，讓系統先運行起來")
-teacher_manager = None
-print("✅ 系統將在沒有 Google Sheets 功能的情況下運行")
+# 使用 Google Apps Script API 而不是 key.json
+try:
+    from teacher_manager import TeacherManager
+    teacher_manager = TeacherManager()
+    print("✅ 老師管理器初始化成功（使用 Google Apps Script API）")
+except Exception as e:
+    print(f"❌ 老師管理器初始化失敗: {e}")
+    teacher_manager = None
 
 # 系統狀態
 system_status = {

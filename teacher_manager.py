@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 from difflib import SequenceMatcher
-import pygsheets
 import json
 import requests
 
@@ -11,18 +10,11 @@ import requests
 class TeacherManager:
     """老師資料管理類別，負責處理老師資料的獲取、比對和通知"""
     
-    def __init__(self, gc, survey_url: str):
+    def __init__(self):
         """
-        初始化老師管理器
-        
-        Args:
-            gc: Google Sheets 客戶端
-            survey_url: Google Sheets URL
+        初始化老師管理器（使用 Google Apps Script API）
         """
-        self.gc = gc
-        self.survey_url = survey_url
-        self.sh = gc.open_by_url(survey_url)
-        self.ws = self.sh.worksheet_by_title("teacher_lineid")
+        self.api_url = "https://script.google.com/macros/s/AKfycbxfj5fwNIc8ncbqkOm763yo6o06wYPHm2nbfd_1yLkHlakoS9FtYfYJhvGCaiAYh_vjIQ/exec"
         self.teacher_cache = {}  # 快取老師資料
         self.last_update = None
         
