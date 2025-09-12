@@ -5,7 +5,7 @@
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from datetime import datetime, timedelta
-import pygsheets
+# import pygsheets  # 已移除，改用 Google Apps Script API
 import pytz
 from caldav import DAVClient
 from teacher_manager import TeacherManager

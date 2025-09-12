@@ -25,7 +25,7 @@ import requests
 import json
 import re
 from teacher_manager import TeacherManager
-import pygsheets
+# import pygsheets  # 已移除，改用 Google Apps Script API
 
 # Flask 應用程式
 app = Flask(__name__)
@@ -79,10 +79,8 @@ messaging_api = MessagingApi(api_client)
 
 # 老師管理器
 try:
-    gc = pygsheets.authorize(service_account_file="key.json")
-    survey_url = "https://docs.google.com/spreadsheets/d/1o8Q9avYfh3rSVvkJruPJy7drh5dQqhA_-icT33jBX8s/"
-    teacher_manager = TeacherManager(gc, survey_url)
-    print("✅ 老師管理器初始化成功")
+    teacher_manager = TeacherManager()
+    print("✅ 老師管理器初始化成功（使用 Google Apps Script API）")
 except Exception as e:
     print(f"❌ 老師管理器初始化失敗: {e}")
     teacher_manager = None
