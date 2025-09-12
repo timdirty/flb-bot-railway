@@ -20,8 +20,10 @@ def main():
     print("🌐 啟動完整的 Web 管理介面...")
     
     try:
-        # 直接執行 web_interface.py
-        subprocess.run([sys.executable, "web_interface.py"], check=True)
+        # 直接執行 web_interface.py，確保環境變數正確傳遞
+        env = os.environ.copy()
+        env["RAILWAY_ENVIRONMENT"] = "true"
+        subprocess.run([sys.executable, "web_interface.py"], check=True, env=env)
     except KeyboardInterrupt:
         print("\n🛑 正在停止系統...")
         print("✅ 系統已停止")
