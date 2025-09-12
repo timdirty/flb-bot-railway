@@ -7,7 +7,7 @@ Railway 專用啟動腳本
 import os
 import threading
 import time
-from main import start_scheduler, app
+from main_simple import start_scheduler, app
 
 def start_web_interface():
     """啟動 Web 管理介面"""

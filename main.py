@@ -232,18 +232,18 @@ def check_tomorrow_courses():
     calendars = principal.calendars()
 
     try:
-    for calendar in calendars:
-        events = calendar.events()
+        for calendar in calendars:
+            events = calendar.events()
             print(f"📅 檢查行事曆: {calendar.name}")
 
-        for event in events:
-            cal = Calendar.from_ical(event.data)
-            for component in cal.walk():
-                if component.name == "VEVENT":
-                    summary = component.get("summary")
-                    start = component.get("dtstart").dt
-                    describe = component.get("description")
-                    location = component.get("location")
+            for event in events:
+                cal = Calendar.from_ical(event.data)
+                for component in cal.walk():
+                    if component.name == "VEVENT":
+                        summary = component.get("summary")
+                        start = component.get("dtstart").dt
+                        describe = component.get("description")
+                        location = component.get("location")
                         
                         # 使用新的老師管理器解析描述
                         parsed_info = teacher_manager.parse_calendar_description(describe)
@@ -265,7 +265,7 @@ def check_tomorrow_courses():
                     m = re.search(pattern, describe)
                     if m:
                         date_raw = m.group(1).strip()
-                            time_range = m.group(2).strip()
+                        time_range = m.group(2).strip()
                         lesson_name = m.group(3).strip()
                         teacher = m.group(4).strip()
                         teacher_url = m.group(5).strip()
@@ -274,10 +274,11 @@ def check_tomorrow_courses():
                         lesson_url = m.group(8).strip()
 
                         # 日期轉格式
-                        formatted_date = datetime.strptime(date_raw, "%Y%m%d").strftime(
-                            "%Y/%m/%d"
-                        )
-                        else:
+                        try:
+                            formatted_date = datetime.strptime(date_raw, "%Y%m%d").strftime(
+                                "%Y/%m/%d"
+                            )
+                        except ValueError:
                             print("⚠️ 無法解析時間格式")
                             continue
 
