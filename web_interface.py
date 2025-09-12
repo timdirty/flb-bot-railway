@@ -1072,6 +1072,34 @@ def api_logs():
     except Exception as e:
         return jsonify({"success": False, "message": f"獲取日誌失敗: {str(e)}"})
 
+def start_scheduler():
+    """啟動定時任務"""
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from main_fixed import morning_summary, check_tomorrow_courses_new, check_upcoming_courses
+        
+        print("🚀 啟動定時任務...")
+        scheduler = BackgroundScheduler()
+        
+        # 每天早上 8:00 推播今日行事曆總覽
+        scheduler.add_job(morning_summary, "cron", hour=8, minute=0)
+        print("✅ 已設定每日 8:00 課程總覽")
+        
+        # 每天晚上 19:00 檢查隔天的課程並發送提醒
+        scheduler.add_job(check_tomorrow_courses_new, "cron", hour=19, minute=0)
+        print("✅ 已設定每日 19:00 隔天課程提醒")
+        
+        # 每分鐘檢查 15 分鐘內即將開始的事件
+        scheduler.add_job(check_upcoming_courses, "interval", minutes=1)
+        print("✅ 已設定每分鐘檢查 15 分鐘內課程提醒")
+        
+        scheduler.start()
+        print("🎯 定時任務已啟動！")
+        return scheduler
+    except Exception as e:
+        print(f"❌ 定時任務啟動失敗: {e}")
+        return None
+
 if __name__ == '__main__':
     import os
     print("🌐 啟動 Web 管理介面...")
@@ -1080,9 +1108,20 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8081))
     debug = os.environ.get("RAILWAY_ENVIRONMENT") != "true"
     
+    # 在 Railway 環境中啟動定時任務
+    scheduler = None
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        scheduler = start_scheduler()
+    
     if debug:
         print(f"📱 請在瀏覽器中開啟: http://localhost:{port}")
     else:
         print(f"🌐 Web 介面已啟動，端口: {port}")
     
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    try:
+        app.run(host='0.0.0.0', port=port, debug=debug)
+    except KeyboardInterrupt:
+        if scheduler:
+            print("\n🛑 正在停止定時任務...")
+            scheduler.shutdown()
+            print("✅ 定時任務已停止")

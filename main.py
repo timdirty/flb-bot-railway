@@ -285,7 +285,7 @@ def check_tomorrow_courses():
                         # 檢查時間是否在 30 分鐘內
                         if isinstance(start, datetime):
                             time_diff = (start - now).total_seconds() / 60
-                    else:
+                        else:
                             # 如果 start 是 date，補上時間
                             start = datetime.combine(
                                 start, datetime.min.time()
@@ -347,8 +347,8 @@ def check_tomorrow_courses():
                     }
                     map_msg = FlexMessage(altText="上課地點", contents=flex_content)
                             
-                            # 建立快速回覆按鈕
-                            quick_reply = QuickReply(
+                    # 建立快速回覆按鈕
+                    quick_reply = QuickReply(
                                 items=[
                                     QuickReplyItem(
                                         action=MessageAction(

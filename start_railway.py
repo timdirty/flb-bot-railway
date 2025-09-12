@@ -1,39 +1,33 @@
 #!/usr/bin/env python3
 """
 Railway 專用啟動腳本
-同時啟動定時任務和 Web 管理介面
+啟動完整的 Web 管理介面（包含定時任務）
 """
 
 import os
-import threading
+import subprocess
+import sys
 import time
-from main_simple import start_scheduler, app
-
-def start_web_interface():
-    """啟動 Web 管理介面"""
-    port = int(os.environ.get("PORT", 5000))
-    print(f"🌐 啟動 Web 管理介面，端口: {port}")
-    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 def main():
     """主啟動函數"""
     print("🚀 啟動 Railway 部署版本...")
     
-    # 啟動定時任務
-    scheduler = start_scheduler()
+    # 設定環境變數
+    os.environ["RAILWAY_ENVIRONMENT"] = "true"
     
-    # 在背景執行緒中啟動 Web 介面
-    web_thread = threading.Thread(target=start_web_interface, daemon=True)
-    web_thread.start()
+    # 啟動 web_interface.py（包含完整的定時任務和 Web 介面）
+    print("🌐 啟動完整的 Web 管理介面...")
     
     try:
-        # 保持主執行緒運行
-        while True:
-            time.sleep(1)
+        # 直接執行 web_interface.py
+        subprocess.run([sys.executable, "web_interface.py"], check=True)
     except KeyboardInterrupt:
         print("\n🛑 正在停止系統...")
-        scheduler.shutdown()
         print("✅ 系統已停止")
+    except Exception as e:
+        print(f"❌ 啟動失敗: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
