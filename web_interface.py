@@ -29,10 +29,14 @@ caldav_password = "testacount"
 access_token = "LaeRrV+/XZ6oCJ2ZFzAFlZXHX822l50NxxM2x6vBkuoux4ptr6KjFJcIXL6pNJel2dKbZ7nxachvxvKrKaMNchMqGTywUl4KMGXhxd/bdiDM7M6Ad8OiXF+VzfhlSMXfu1MbDfxdwe0z/NLYHzadyQdB04t89/1O/w1cDnyilFU="
 
 # 初始化
+print("🔍 開始初始化老師管理器...")
+print(f"🔍 環境變數 GOOGLE_CREDENTIALS_JSON 存在: {bool(os.environ.get('GOOGLE_CREDENTIALS_JSON'))}")
+
 try:
     # 嘗試從環境變數讀取 Google 服務帳戶憑證
     google_credentials = os.environ.get("GOOGLE_CREDENTIALS_JSON")
     if google_credentials:
+        print("✅ 找到環境變數中的 Google 憑證")
         import json
         import tempfile
         # 將 JSON 字串寫入臨時檔案
@@ -44,6 +48,7 @@ try:
         os.unlink(temp_key_file)  # 刪除臨時檔案
         print("✅ 使用環境變數中的 Google 憑證")
     else:
+        print("⚠️ 未找到環境變數，嘗試使用 key.json 檔案")
         # 回退到 key.json 檔案（本地開發）
         gc = pygsheets.authorize(service_account_file="key.json")
         print("✅ 使用 key.json 檔案")
@@ -52,6 +57,8 @@ try:
     print("✅ 老師管理器初始化成功")
 except Exception as e:
     print(f"❌ 老師管理器初始化失敗: {e}")
+    import traceback
+    traceback.print_exc()
     teacher_manager = None
 
 # 系統狀態
