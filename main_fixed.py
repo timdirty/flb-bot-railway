@@ -169,9 +169,9 @@ def start_scheduler():
     scheduler.add_job(check_tomorrow_courses_new, "cron", hour=19, minute=0)
     print("✅ 已設定每日 19:00 隔天課程提醒")
     
-    # 每分鐘檢查 15 分鐘內即將開始的事件
-    scheduler.add_job(check_upcoming_courses, "interval", minutes=1)
-    print("✅ 已設定每分鐘檢查 15 分鐘內課程提醒")
+    # 每 30 分鐘檢查 15 分鐘內即將開始的事件
+    scheduler.add_job(check_upcoming_courses, "interval", minutes=30)
+    print("✅ 已設定每 30 分鐘檢查 15 分鐘內課程提醒")
     
     scheduler.start()
     print("🎯 定時任務已啟動！")
