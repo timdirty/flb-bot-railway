@@ -232,8 +232,8 @@ def check_tomorrow_courses():
     calendars = principal.calendars()
 
     try:
-    for calendar in calendars:
-        events = calendar.events()
+        for calendar in calendars:
+            events = calendar.events()
             print(f"📅 檢查行事曆: {calendar.name}")
 
         for event in events:
@@ -244,9 +244,9 @@ def check_tomorrow_courses():
                     start = component.get("dtstart").dt
                     describe = component.get("description")
                     location = component.get("location")
-                        
-                        # 使用新的老師管理器解析描述
-                        parsed_info = teacher_manager.parse_calendar_description(describe)
+                    
+                    # 使用新的老師管理器解析描述
+                    parsed_info = teacher_manager.parse_calendar_description(describe)
                         
                         if not parsed_info["teachers"] and not parsed_info["assistants"]:
                             print("⚠️ 無法從描述中解析老師資訊")
@@ -956,10 +956,20 @@ def check_upcoming_courses():
     
     print(f"🔔 檢查即將開始的課程: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}")
     
+    # 發送系統檢查通知給管理員
     try:
-    client = DAVClient(url, username=username, password=password)
-    principal = client.principal()
-    calendars = principal.calendars()
+        admin_message = f"🔍 系統檢查通知\n\n"
+        admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
+        admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
+        send_admin_notification(admin_message, "system")
+    except Exception as e:
+        print(f"發送系統檢查通知失敗: {e}")
+    
+    try:
+        client = DAVClient(url, username=username, password=password)
+        principal = client.principal()
+        calendars = principal.calendars()
         
         upcoming_courses = []
         

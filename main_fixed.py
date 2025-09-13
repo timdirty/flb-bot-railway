@@ -239,6 +239,16 @@ def check_upcoming_courses():
     
     print(f"🔔 檢查即將開始的課程: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}")
     
+    # 發送系統檢查通知給管理員
+    try:
+        admin_message = f"🔍 系統檢查通知\n\n"
+        admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
+        admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
+        send_admin_notification(admin_message, "system")
+    except Exception as e:
+        print(f"發送系統檢查通知失敗: {e}")
+    
     # 檢查測試模式設定
     test_mode = False
     try:
