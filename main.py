@@ -315,6 +315,23 @@ def upload_weekly_calendar_to_sheet():
                                         # 移除已提取的課程類型，其餘部分放到備注2
                                         remaining_summary = summary.replace(course_type, '').strip()
                                     
+                                    # 從剩餘內容中提取地點資訊（到府、外、松山等）
+                                    location_from_title = ""
+                                    if remaining_summary:
+                                        # 尋找地點關鍵字
+                                        location_patterns = [r'到府', r'外', r'松山', r'站前', r'線上']
+                                        for pattern in location_patterns:
+                                            match = re.search(pattern, remaining_summary)
+                                            if match:
+                                                location_from_title = match.group(0)
+                                                # 從剩餘內容中移除地點資訊
+                                                remaining_summary = remaining_summary.replace(location_from_title, '').strip()
+                                                break
+                                    
+                                    # 將地點資訊加到時間欄位
+                                    if location_from_title:
+                                        formatted_time += f" {location_from_title}"
+                                    
                                     # 將剩餘的 summary 內容加到備注2
                                     if remaining_summary and remaining_summary != course_type:
                                         if note2:
