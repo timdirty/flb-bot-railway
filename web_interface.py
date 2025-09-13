@@ -90,22 +90,23 @@ def extract_lesson_plan_url(description):
     
     import re
     
-    # 尋找教案相關的連結 - 使用更簡單的方法
+    # 尋找教案相關的連結 - 使用更精確的方法
     # 先找到「教案:」的位置，然後提取後面的完整 URL
     lesson_match = re.search(r'教案[：:]\s*(.*)', description, re.IGNORECASE)
     if lesson_match:
         # 取得教案後面的所有內容
         after_lesson = lesson_match.group(1).strip()
         
-        # 從中提取第一個完整的 URL
-        url_match = re.search(r'(https?://[^\s\n]+)', after_lesson)
+        # 從中提取完整的 URL，包括所有參數
+        # 使用更寬鬆的匹配，直到遇到真正的分隔符
+        url_match = re.search(r'(https?://[^\s\n]+(?:\?[^\s\n]*)?)', after_lesson)
         if url_match:
             url = url_match.group(1).strip()
             print(f"✅ 提取到教案連結: {url}")
             return url
     
     # 如果沒有找到教案標籤，嘗試尋找 Notion 連結
-    notion_pattern = r'(https://[^\s\n]*notion[^\s\n]*)'
+    notion_pattern = r'(https://[^\s\n]*notion[^\s\n]*(?:\?[^\s\n]*)?)'
     match = re.search(notion_pattern, description, re.IGNORECASE)
     if match:
         url = match.group(1).strip()
