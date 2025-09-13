@@ -143,6 +143,31 @@ def upload_weekly_calendar_to_sheet():
             'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3RZrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
         }
         
+        # 先測試 API 是否可用
+        print("🔍 測試 Google Apps Script API 連線...")
+        test_payload = json.dumps({"action": "test"})
+        try:
+            test_response = requests.post(url, headers=headers, data=test_payload, timeout=10)
+            if test_response.status_code == 404:
+                print("❌ Google Apps Script API 不可用 (404 錯誤)")
+                print("💡 請檢查 API URL 是否正確或 Google Apps Script 是否已部署")
+                
+                # 發送管理員通知
+                admin_message = f"⚠️ Google Sheet 上傳功能暫時不可用\n\n"
+                admin_message += f"❌ 錯誤: API 端點回傳 404 錯誤\n"
+                admin_message += f"🔗 API URL: {url}\n"
+                admin_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                admin_message += f"💡 請檢查 Google Apps Script 是否已正確部署"
+                send_admin_notification(admin_message, "system_alerts")
+                return
+        except Exception as e:
+            print(f"❌ API 連線測試失敗: {e}")
+            admin_message = f"⚠️ Google Sheet 上傳功能連線失敗\n\n"
+            admin_message += f"❌ 錯誤: {str(e)}\n"
+            admin_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+            send_admin_notification(admin_message, "system_alerts")
+            return
+        
         # 計算當週的開始和結束日期
         now = datetime.now(tz)
         # 找到本週一
