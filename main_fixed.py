@@ -117,7 +117,7 @@ def send_admin_notification(message_text, notification_type="info"):
                     continue
                 
                 if admin_user_id:
-        messaging_api.push_message(
+                    messaging_api.push_message(
                         PushMessageRequest(to=admin_user_id, messages=[TextMessage(text=formatted_message)])
                     )
                     success_count += 1
@@ -289,7 +289,7 @@ def upload_weekly_calendar_to_sheet():
                                         period = "上午"
                                     elif hour < 18:
                                         period = "下午"
-                else:
+                                    else:
                                         period = "晚上"
                                     
                                     # 確定週次
@@ -339,7 +339,7 @@ def upload_weekly_calendar_to_sheet():
                                     if remaining_summary and remaining_summary != course_type:
                                         if note2:
                                             note2 = f"{note2} | {remaining_summary}"
-                else:
+                                        else:
                                             note2 = remaining_summary
                                     
                                     # 收集行事曆項目
@@ -633,12 +633,12 @@ def check_upcoming_courses():
     
     try:
         client = DAVClient(caldav_url, username=username, password=password)
-    principal = client.principal()
-    calendars = principal.calendars()
+        principal = client.principal()
+        calendars = principal.calendars()
         
         upcoming_courses = []
 
-    for calendar in calendars:
+        for calendar in calendars:
             try:
                 events = calendar.search(
                     start=upcoming_start,
@@ -711,7 +711,7 @@ def check_upcoming_courses():
                             try:
                                 if isinstance(start_time, str):
                                     start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                    else:
+                                else:
                                     start_dt = start_time
                                 
                                 if start_dt.tzinfo is None:
@@ -917,8 +917,8 @@ def check_upcoming_courses():
                             try:
                                 admin_user_id = admin.get("admin_user_id")
                                 if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
-            messaging_api.push_message(
-                PushMessageRequest(
+                                    messaging_api.push_message(
+                                        PushMessageRequest(
                                             to=admin_user_id,
                                             messages=[TextMessage(text=message)]
                                         )
