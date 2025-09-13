@@ -752,10 +752,10 @@ def api_test_course_reminder():
             principal = client.principal()
             calendars = principal.calendars()
             
-            # 獲取接下來2小時內的事件
+            # 獲取接下來30分鐘內的事件
             tz = pytz.timezone("Asia/Taipei")
             now = datetime.now(tz)
-            next_2_hours = now + timedelta(hours=2)
+            next_30_minutes = now + timedelta(minutes=30)
             
             # 讀取所有行事曆的即將到來事件
             upcoming_events = []
@@ -763,7 +763,7 @@ def api_test_course_reminder():
                 try:
                     events = calendar.search(
                         start=now,
-                        end=next_2_hours,
+                        end=next_30_minutes,
                         event=True,
                         expand=True
                     )
@@ -840,12 +840,16 @@ def api_test_course_reminder():
                                         hours = int(time_diff.total_seconds() // 3600)
                                         minutes = int((time_diff.total_seconds() % 3600) // 60)
                                         
-                                        if hours > 0:
-                                            time_until = f"{hours}小時{minutes}分鐘後"
+                                        # 只處理30分鐘內即將開始的課程
+                                        if minutes <= 30:
+                                            if hours > 0:
+                                                time_until = f"{hours}小時{minutes}分鐘後"
+                                            else:
+                                                time_until = f"{minutes}分鐘後"
+                                            
+                                            time_str = start_dt.strftime('%H:%M')
                                         else:
-                                            time_until = f"{minutes}分鐘後"
-                                        
-                                        time_str = start_dt.strftime('%H:%M')
+                                            continue  # 跳過超過30分鐘的課程
                                     else:
                                         continue  # 跳過已開始的事件
                                 except:

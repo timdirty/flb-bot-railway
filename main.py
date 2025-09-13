@@ -517,9 +517,9 @@ def start_scheduler():
     scheduler.add_job(check_tomorrow_courses_new, "cron", hour=19, minute=0)
     print("✅ 已設定每日 19:00 隔天課程提醒")
 
-    # 每30分鐘檢查 15 分鐘內即將開始的事件
+    # 每30分鐘檢查 30 分鐘內即將開始的事件
     scheduler.add_job(check_upcoming_courses, "interval", minutes=30)
-    print("✅ 已設定每30分鐘檢查 15 分鐘內課程提醒")
+    print("✅ 已設定每30分鐘檢查 30 分鐘內課程提醒")
     
     # 每30分鐘更新講師資料
     scheduler.add_job(update_teacher_data, "interval", minutes=30)
@@ -878,11 +878,11 @@ def clean_description_content(description):
 
 def check_upcoming_courses():
     """
-    每分鐘檢查 15 分鐘內即將開始的課程並發送提醒
+    每30分鐘檢查 30 分鐘內即將開始的課程並發送提醒
     """
     now = datetime.now(tz)
     upcoming_start = now
-    upcoming_end = now + timedelta(minutes=15)
+    upcoming_end = now + timedelta(minutes=30)
     
     print(f"🔔 檢查即將開始的課程: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}")
     
@@ -980,8 +980,8 @@ def check_upcoming_courses():
                             time_str = "時間未知"
                             time_diff = 0
                         
-                        # 只處理 15 分鐘內即將開始的課程
-                        if 1 <= time_diff <= 15:
+                        # 只處理 30 分鐘內即將開始的課程
+                        if 1 <= time_diff <= 30:
                             # 從描述中提取老師資訊並進行模糊比對
                             teacher_name = "未知老師"
                             teacher_user_id = None
