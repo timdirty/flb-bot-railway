@@ -148,8 +148,12 @@ class TeacherManager:
         best_score = 0
         
         for teacher_name, user_id in teacher_data.items():
-            # 計算相似度
+            # 計算相似度 - 確保兩個字串都是大寫格式
             similarity = SequenceMatcher(None, calendar_name, teacher_name).ratio()
+            
+            # 額外檢查：如果包含關係也算匹配（例如 EASON 包含 Eason）
+            if calendar_name in teacher_name or teacher_name in calendar_name:
+                similarity = max(similarity, 0.8)  # 包含關係給予較高相似度
             
             if similarity > best_score and similarity >= threshold:
                 best_score = similarity
@@ -159,6 +163,8 @@ class TeacherManager:
             print(f"🎯 模糊比對成功: '{calendar_teacher_name}' -> '{best_match[0]}' (相似度: {best_score:.2f})")
         else:
             print(f"❌ 找不到匹配的老師: '{calendar_teacher_name}' (最高相似度: {best_score:.2f})")
+            # 調試：顯示所有可用的老師名稱
+            print(f"🔍 可用的老師名稱: {list(teacher_data.keys())}")
             
         return best_match
     
