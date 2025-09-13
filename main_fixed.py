@@ -62,6 +62,73 @@ def load_admin_config():
         print(f"❌ 載入管理員設定失敗: {e}")
         return {"admins": [], "global_notifications": True}
 
+def send_admin_notification(message_text, notification_type="info"):
+    """發送通知給所有管理員"""
+    try:
+        admin_config = load_admin_config()
+        admins = admin_config.get("admins", [])
+        global_notifications = admin_config.get("global_notifications", {})
+        
+        if not admins:
+            print("沒有設定管理員")
+            return
+        
+        # 檢查全域通知設定
+        if notification_type == "daily_summary" and not global_notifications.get("daily_summary", True):
+            return
+        elif notification_type == "course_reminders" and not global_notifications.get("course_reminders", True):
+            return
+        elif notification_type == "system_alerts" and not global_notifications.get("system_alerts", True):
+            return
+        elif notification_type == "error_notifications" and not global_notifications.get("error_notifications", True):
+            return
+        
+        # 根據通知類型添加圖示
+        icons = {
+            "info": "ℹ️",
+            "success": "✅",
+            "warning": "⚠️",
+            "error": "❌",
+            "system": "🔧",
+            "daily_summary": "🌅",
+            "course_reminders": "📚",
+            "system_alerts": "🚨",
+            "error_notifications": "❌"
+        }
+        
+        icon = icons.get(notification_type, "ℹ️")
+        formatted_message = f"{icon} 管理員通知\n\n{message_text}"
+        
+        success_count = 0
+        for admin in admins:
+            try:
+                admin_user_id = admin.get("admin_user_id")
+                admin_name = admin.get("admin_name", "未知")
+                admin_notifications = admin.get("notifications", {})
+                
+                # 檢查個別管理員的通知設定
+                if notification_type == "daily_summary" and not admin_notifications.get("daily_summary", True):
+                    continue
+                elif notification_type == "course_reminders" and not admin_notifications.get("course_reminders", True):
+                    continue
+                elif notification_type == "system_alerts" and not admin_notifications.get("system_alerts", True):
+                    continue
+                elif notification_type == "error_notifications" and not admin_notifications.get("error_notifications", True):
+                    continue
+                
+                if admin_user_id:
+                    messaging_api.push_message(
+                        PushMessageRequest(to=admin_user_id, messages=[TextMessage(text=formatted_message)])
+                    )
+                    success_count += 1
+                    print(f"已發送管理員通知給 {admin_name}: {message_text}")
+            except Exception as e:
+                print(f"發送通知給 {admin.get('admin_name', '未知')} 失敗: {e}")
+        
+        print(f"管理員通知發送完成，成功發送給 {success_count} 位管理員")
+    except Exception as e:
+        print(f"發送管理員通知失敗: {str(e)}")
+
 # 載入配置
 configuration = load_admin_config()
 admins = configuration.get("admins", [])
