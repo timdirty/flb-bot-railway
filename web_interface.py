@@ -695,12 +695,24 @@ def api_test_course_reminder():
                                 
                                 # 從 iCalendar 字符串中提取資訊
                                 lines = event_data.split('\n')
-                                for line in lines:
-                                    line = line.strip()
+                                i = 0
+                                while i < len(lines):
+                                    line = lines[i].strip()
                                     if line.startswith('SUMMARY:'):
                                         summary = line[8:].strip()
                                     elif line.startswith('DESCRIPTION:'):
+                                        # 處理多行描述
                                         description = line[12:].strip()
+                                        i += 1
+                                        # 繼續讀取後續行，直到遇到新的欄位或空行
+                                        while i < len(lines):
+                                            next_line = lines[i].strip()
+                                            if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'URL:', 'END:')):
+                                                description += '\n' + next_line
+                                                i += 1
+                                            else:
+                                                break
+                                        i -= 1  # 回退一行，因為外層循環會自動增加
                                     elif line.startswith('DTSTART'):
                                         start_match = re.search(r'DTSTART[^:]*:(.+)', line)
                                         if start_match:
@@ -709,6 +721,7 @@ def api_test_course_reminder():
                                         location = line[9:].strip()
                                     elif line.startswith('URL:'):
                                         event_url = line[4:].strip()
+                                    i += 1
                             else:
                                 # 如果是字典，使用原來的解析方式
                                 summary = event_data.get('summary', '無標題')
