@@ -141,6 +141,33 @@ def check_tomorrow_courses_new():
     except Exception as e:
         print(f"❌ 檢查隔天課程失敗: {e}")
 
+def send_admin_error_notification(error_message):
+    """發送錯誤通知給管理員"""
+    try:
+        admin_config = load_admin_config()
+        admins = admin_config.get("admins", [])
+        
+        message = f"⚠️ 系統錯誤通知\n\n"
+        message += f"錯誤內容: {error_message}\n"
+        message += f"時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        message += f"請檢查系統設定或聯繫技術支援"
+        
+        for admin in admins:
+            try:
+                admin_user_id = admin.get("admin_user_id")
+                if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=admin_user_id,
+                            messages=[TextMessage(text=message)]
+                        )
+                    )
+                    print(f"✅ 已發送錯誤通知給管理員 {admin.get('admin_name', '未知')}")
+            except Exception as e:
+                print(f"❌ 發送錯誤通知給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
+    except Exception as e:
+        print(f"❌ 發送管理員錯誤通知失敗: {e}")
+
 def check_upcoming_courses():
     """
     每 30 分鐘檢查 15 分鐘內即將開始的課程並發送提醒
@@ -150,6 +177,19 @@ def check_upcoming_courses():
     upcoming_end = now + timedelta(minutes=15)
     
     print(f"🔔 檢查即將開始的課程: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}")
+    
+    # 檢查測試模式設定
+    test_mode = False
+    try:
+        if os.path.exists("test_mode_config.json"):
+            with open("test_mode_config.json", 'r', encoding='utf-8') as f:
+                test_config = json.load(f)
+                test_mode = test_config.get("test_mode", False)
+    except Exception as e:
+        print(f"⚠️ 讀取測試模式設定失敗: {e}")
+    
+    mode_text = "測試模式" if test_mode else "正常模式"
+    print(f"📋 當前模式: {mode_text}")
     
     try:
         client = DAVClient(url, username=username, password=password)
@@ -290,15 +330,82 @@ def check_upcoming_courses():
         if upcoming_courses:
             print(f"🔔 找到 {len(upcoming_courses)} 個即將開始的課程")
             
-            # 所有課程都發送給管理員（不發送給個別老師）
-            admin_courses = upcoming_courses
+            # 根據測試模式決定發送對象
+            if test_mode:
+                # 測試模式：只發送給管理員
+                print("🧪 測試模式：只發送給管理員")
+                admin_courses = upcoming_courses
+                teacher_courses = []
+            else:
+                # 正常模式：按老師分組，發送給個別老師和管理員
+                print("📱 正常模式：發送給個別老師和管理員")
+                teacher_courses = {}
+                admin_courses = []
+                
+                for course in upcoming_courses:
+                    if course['teacher_user_id']:
+                        # 有找到老師的 User ID，發送給該老師
+                        if course['teacher_user_id'] not in teacher_courses:
+                            teacher_courses[course['teacher_user_id']] = {
+                                'teacher_name': course['teacher'],
+                                'courses': []
+                            }
+                        teacher_courses[course['teacher_user_id']]['courses'].append(course)
+                    else:
+                        # 沒找到老師的 User ID，加入管理員通知列表
+                        admin_courses.append(course)
             
-            # 發送管理員通知（包含所有課程）
-            if admin_courses:
+            # 發送個別老師的課程提醒（正常模式）
+            if not test_mode and teacher_courses:
+                for teacher_user_id, teacher_data in teacher_courses.items():
+                    for course in teacher_data['courses']:
+                        try:
+                            message = f"🔔 課程即將開始！\n\n"
+                            message += f"📚 課程: {course['summary']}\n"
+                            message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                            message += f"👨‍🏫 老師: {course['teacher']}\n"
+                            message += f"📅 行事曆: {course['calendar']}\n"
+                            
+                            # 顯示地點資訊
+                            if course.get('location') and course['location'] != 'nan' and course['location'].strip():
+                                message += f"📍 地點: {course['location']}\n"
+                            
+                            # 顯示教案連結
+                            if course.get('url') and course['url'].strip():
+                                message += f"🔗 教案連結: {course['url']}\n"
+                            
+                            # 顯示行事曆備註中的原始內容
+                            if course.get('description') and course['description'].strip():
+                                message += f"📝 課程附註:\n"
+                                description_text = course['description'].strip()
+                                description_lines = description_text.split('\n')
+                                for line in description_lines:
+                                    line = line.strip()
+                                    if line:
+                                        message += f"   {line}\n"
+                            
+                            message += "\n"
+                            message += "📝 簽到連結: https://liff.line.me/1657746214-wPgd2qQn"
+                            
+                            messaging_api.push_message(
+                                PushMessageRequest(
+                                    to=teacher_user_id,
+                                    messages=[TextMessage(text=message)]
+                                )
+                            )
+                            print(f"✅ 已發送課程提醒給 {teacher_data['teacher_name']} ({teacher_user_id})")
+                        except Exception as e:
+                            print(f"❌ 發送課程提醒給 {teacher_data['teacher_name']} 失敗: {e}")
+                            # 發送失敗時通知管理員
+                            send_admin_error_notification(f"發送課程提醒給 {teacher_data['teacher_name']} 失敗: {e}")
+            
+            # 發送管理員通知（包含所有課程或未找到老師的課程）
+            all_admin_courses = admin_courses if test_mode else admin_courses
+            if all_admin_courses:
                 admin_config = load_admin_config()
                 admins = admin_config.get("admins", [])
                 
-                for course in admin_courses:
+                for course in all_admin_courses:
                     try:
                         message = f"🔔 課程即將開始！\n\n"
                         message += f"📚 課程: {course['summary']}\n"
@@ -327,6 +434,15 @@ def check_upcoming_courses():
                                     message += f"   {line}\n"
                         
                         message += "\n"
+                        
+                        # 添加模式說明和缺少ID的報告
+                        if test_mode:
+                            message += "🧪 測試模式：只發送給管理員\n"
+                        else:
+                            if not course.get('teacher_user_id'):
+                                message += "⚠️ 注意：未找到對應的老師 User ID\n"
+                            message += "📱 正常模式：已發送給個別老師\n"
+                        
                         message += "📝 簽到連結: https://liff.line.me/1657746214-wPgd2qQn"
                         
                         for admin in admins:
@@ -342,8 +458,11 @@ def check_upcoming_courses():
                                     print(f"✅ 已發送課程提醒給管理員 {admin.get('admin_name', '未知')}")
                             except Exception as e:
                                 print(f"❌ 發送課程提醒給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
+                                # 發送失敗時通知其他管理員
+                                send_admin_error_notification(f"發送課程提醒給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
                     except Exception as e:
                         print(f"❌ 發送課程提醒失敗: {e}")
+                        send_admin_error_notification(f"發送課程提醒失敗: {e}")
         else:
             print("📭 沒有即將開始的課程")
             

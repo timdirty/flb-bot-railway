@@ -49,8 +49,39 @@ system_status = {
     "error_count": 0
 }
 
+# 測試模式設定
+test_mode_config = {
+    "test_mode": False  # 預設為正常模式
+}
+
 # 管理員設定檔案路徑
 ADMIN_CONFIG_FILE = "admin_config.json"
+TEST_MODE_CONFIG_FILE = "test_mode_config.json"
+
+def load_test_mode_config():
+    """載入測試模式設定"""
+    global test_mode_config
+    try:
+        if os.path.exists(TEST_MODE_CONFIG_FILE):
+            with open(TEST_MODE_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                test_mode_config = json.load(f)
+                print(f"✅ 已載入測試模式設定: {test_mode_config}")
+        else:
+            # 如果檔案不存在，創建預設設定
+            save_test_mode_config()
+            print("✅ 已創建預設測試模式設定")
+    except Exception as e:
+        print(f"❌ 載入測試模式設定失敗: {e}")
+        test_mode_config = {"test_mode": False}
+
+def save_test_mode_config():
+    """保存測試模式設定"""
+    try:
+        with open(TEST_MODE_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(test_mode_config, f, ensure_ascii=False, indent=2)
+        print(f"✅ 已保存測試模式設定: {test_mode_config}")
+    except Exception as e:
+        print(f"❌ 保存測試模式設定失敗: {e}")
 
 def load_admin_config():
     """載入管理員設定"""
@@ -887,6 +918,34 @@ def api_test_course_reminder():
     except Exception as e:
         return jsonify({"success": False, "message": f"課程提醒測試失敗: {str(e)}"})
 
+@app.route('/api/test_mode', methods=['GET', 'POST'])
+def api_test_mode():
+    """API: 獲取或設定測試模式"""
+    try:
+        if request.method == 'GET':
+            # 獲取測試模式狀態
+            return jsonify({
+                "success": True,
+                "test_mode": test_mode_config.get("test_mode", False)
+            })
+        elif request.method == 'POST':
+            # 設定測試模式
+            data = request.get_json()
+            if data and 'test_mode' in data:
+                test_mode_config["test_mode"] = bool(data['test_mode'])
+                save_test_mode_config()
+                
+                mode_text = "測試模式" if test_mode_config["test_mode"] else "正常模式"
+                return jsonify({
+                    "success": True,
+                    "message": f"已切換到{mode_text}",
+                    "test_mode": test_mode_config["test_mode"]
+                })
+            else:
+                return jsonify({"success": False, "message": "無效的請求資料"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"測試模式操作失敗: {str(e)}"})
+
 @app.route('/api/calendar_events')
 def api_calendar_events():
     """API: 獲取行事曆事件"""
@@ -1146,6 +1205,9 @@ def start_scheduler():
 if __name__ == '__main__':
     import os
     print("🌐 啟動 Web 管理介面...")
+    
+    # 載入測試模式設定
+    load_test_mode_config()
     
     # 支援環境變數端口設定
     port = int(os.environ.get("PORT", 8081))

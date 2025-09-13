@@ -82,6 +82,24 @@
                                 <p><strong>錯誤次數:</strong> <span id="error-count">0</span></p>
                             </div>
                         </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="d-flex align-items-center">
+                                    <label class="form-check-label me-3" for="test-mode-switch">
+                                        <strong>測試模式:</strong>
+                                    </label>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="test-mode-switch" onchange="toggleTestMode()">
+                                        <label class="form-check-label" for="test-mode-switch" id="test-mode-label">
+                                            關閉 (正常模式)
+                                        </label>
+                                    </div>
+                                    <small class="text-muted ms-3" id="test-mode-description">
+                                        正常模式：發送給所有講師和管理員 | 測試模式：只發送給管理員
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
                         <div class="mt-3">
                             <button class="btn btn-success btn-action" id="start-btn" onclick="startSystem()">
                                 <i class="fas fa-play"></i> 啟動系統
@@ -547,6 +565,7 @@
             refreshCalendars();
             refreshLogs();
             loadAdminConfig(); // 載入管理員設定
+            loadTestModeStatus(); // 載入測試模式狀態
             initializeDateFilter(); // 初始化日期篩選器
             
             // 設定定時更新
@@ -1527,6 +1546,76 @@
                 </div>
             `;
             document.getElementById('events-stats').style.display = 'none';
+        }
+
+        // 測試模式切換
+        async function toggleTestMode() {
+            const switchElement = document.getElementById('test-mode-switch');
+            const labelElement = document.getElementById('test-mode-label');
+            const descriptionElement = document.getElementById('test-mode-description');
+            
+            const isTestMode = switchElement.checked;
+            
+            try {
+                const response = await fetch('/api/test_mode', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        test_mode: isTestMode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (isTestMode) {
+                        labelElement.textContent = '開啟 (測試模式)';
+                        descriptionElement.textContent = '測試模式：只發送給管理員 | 正常模式：發送給所有講師和管理員';
+                        showNotification('已切換到測試模式', 'info');
+                    } else {
+                        labelElement.textContent = '關閉 (正常模式)';
+                        descriptionElement.textContent = '正常模式：發送給所有講師和管理員 | 測試模式：只發送給管理員';
+                        showNotification('已切換到正常模式', 'success');
+                    }
+                } else {
+                    // 如果切換失敗，恢復開關狀態
+                    switchElement.checked = !isTestMode;
+                    showNotification('切換模式失敗: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('切換測試模式失敗:', error);
+                // 如果請求失敗，恢復開關狀態
+                switchElement.checked = !isTestMode;
+                showNotification('切換模式失敗: ' + error.message, 'error');
+            }
+        }
+
+        // 載入測試模式狀態
+        async function loadTestModeStatus() {
+            try {
+                const response = await fetch('/api/test_mode');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const switchElement = document.getElementById('test-mode-switch');
+                    const labelElement = document.getElementById('test-mode-label');
+                    const descriptionElement = document.getElementById('test-mode-description');
+                    
+                    switchElement.checked = data.test_mode;
+                    
+                    if (data.test_mode) {
+                        labelElement.textContent = '開啟 (測試模式)';
+                        descriptionElement.textContent = '測試模式：只發送給管理員 | 正常模式：發送給所有講師和管理員';
+                    } else {
+                        labelElement.textContent = '關閉 (正常模式)';
+                        descriptionElement.textContent = '正常模式：發送給所有講師和管理員 | 測試模式：只發送給管理員';
+                    }
+                }
+            } catch (error) {
+                console.error('載入測試模式狀態失敗:', error);
+            }
         }
     </script>
 </body>
