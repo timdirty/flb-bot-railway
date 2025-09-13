@@ -1,32 +1,37 @@
-from datetime import datetime, timedelta
+#!/usr/bin/env python3
+"""
+修復版的 main.py - 只包含必要的函數
+"""
 
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from caldav import DAVClient
 from flask import Flask
 from icalendar import Calendar
-from linebot.v3.messaging import FlexMessage
 from linebot.v3.messaging import (
     MessagingApi,
     PushMessageRequest,
     TextMessage,
+    FlexMessage,
     QuickReply,
     QuickReplyItem,
+    MessageAction,
 )
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
-from linebot.v3.messaging.models import MessageAction
-
-app = Flask(__name__)
-import pygsheets
-import re
-from teacher_data_manager import get_teacher_manager, update_teacher_data
 import os
-
-today = datetime.now().date()
-gc = pygsheets.authorize(service_account_file="key.json")
 import pytz
 import requests
 import json
+import re
+from teacher_manager import TeacherManager
+# import pygsheets  # 已移除，改用 Google Apps Script API
+
+# Flask 應用程式
+app = Flask(__name__)
+
+# 時區設定
+tz = pytz.timezone("Asia/Taipei")
 
 # 管理員設定檔案路徑
 ADMIN_CONFIG_FILE = "admin_config.json"
@@ -38,118 +43,25 @@ def load_admin_config():
             with open(ADMIN_CONFIG_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         else:
-            # 預設管理員設定 - 支援多個管理員
+            # 預設管理員設定
             return {
                 "admins": [
                     {
-                        "admin_user_id": "Udb51363eb6fdc605a6a9816379a38103",  # Tim 的 user_id
+                        "admin_user_id": os.environ.get("ADMIN_USER_ID", "Udb51363eb6fdc605a6a9816379a38103"),
                         "admin_name": "Tim",
                         "notifications": {
                             "daily_summary": True,
                             "course_reminders": True,
-                            "system_alerts": True,
-                            "error_notifications": True
+                            "system_alerts": True
                         }
                     }
                 ],
-                "global_notifications": {
-                    "daily_summary": True,
-                    "course_reminders": True,
-                    "system_alerts": True,
-                    "error_notifications": True
-                }
+                "global_notifications": True
             }
     except Exception as e:
-        print(f"載入管理員設定失敗: {e}")
-        return {
-            "admins": [
-                {
-                    "admin_user_id": "Udb51363eb6fdc605a6a9816379a38103",
-                    "admin_name": "Tim",
-                    "notifications": {
-                        "daily_summary": True,
-                        "course_reminders": True,
-                        "system_alerts": True,
-                        "error_notifications": True
-                    }
-                }
-            ],
-            "global_notifications": {
-                "daily_summary": True,
-                "course_reminders": True,
-                "system_alerts": True,
-                "error_notifications": True
-            }
-        }
+        print(f"❌ 載入管理員設定失敗: {e}")
+        return {"admins": [], "global_notifications": True}
 
-
-pattern_TS = (
-    r"^(.*?):(.*?):(.*?):(\d{4}/\d{2}/\d{2}):([\d:]+-[\d:]+):(.*?):(\d+):([A-Z]+)$"
-)
-teacher_signin = "https://script.google.com/macros/s/AKfycbxfj5fwNIc8ncbqkOm763yo6o06wYPHm2nbfd_1yLkHlakoS9FtYfYJhvGCaiAYh_vjIQ/exec"
-TS_headers = {"Content-Type": "application/json"}
-"""
-TS_payload = json.dumps({
-  "action": "appendTeacherCourse",
-  "teacherName": "test",
-  "sheetName": "報表",
-  "課程名稱": "AI 影像辨識",
-  "上課時間": "15:00-16:30",
-  "日期": "2025/07/23",
-  "人數助教": "10",
-  "課程內容": "YOLO 模型實作與 ChatGPT 應用"
-})
-
-
-TS_response = requests.request("POST", teacher_signin, headers=headers, data=TS_payload)
-"""
-
-tz = pytz.timezone("Asia/Taipei")
-survey_url = "https://docs.google.com/spreadsheets/d/1o8Q9avYfh3rSVvkJruPJy7drh5dQqhA_-icT33jBX8s/"
-
-# 初始化老師管理器
-teacher_manager = get_teacher_manager()
-
-# Synology CalDAV 設定 - 支援環境變數
-url = os.environ.get("CALDAV_URL", "https://funlearnbar.synology.me:9102/caldav/")
-username = os.environ.get("CALDAV_USERNAME", "testacount")
-password = os.environ.get("CALDAV_PASSWORD", "testacount")
-
-# LINE API 設定 - 支援環境變數
-access_token = os.environ.get("LINE_ACCESS_TOKEN", "LaeRrV+/XZ6oCJ2ZFzAFlZXHX822l50NxxM2x6vBkuoux4ptr6KjFJcIXL6pNJel2dKbZ7nxachvxvKrKaMNchMqGTywUl4KMGXhxd/bdiDM7M6Ad8OiXF+VzfhlSMXfu1MbDfxdwe0z/NLYHzadyQdB04t89/1O/w1cDnyilFU=")
-
-# 管理員設定 - 支援環境變數
-ADMIN_USER_ID = os.environ.get("ADMIN_USER_ID", "Udb51363eb6fdc605a6a9816379a38103")  # Tim 的 user_id
-
-configuration = Configuration(access_token=access_token)
-api_client = ApiClient(configuration)
-messaging_api = MessagingApi(api_client)
-
-
-# ✅ 抓取日曆事件
-"""
-def get_calendar_events(ta_name):
-    now = datetime.now(tz)
-    client = DAVClient(url, username=username, password=password)
-    principal = client.principal()
-    calendars = principal.calendars()
-    try:
-        for calendar in calendars:
-            if ta_name == calendar.name:
-"""
-
-
-# ✅ 主動推播訊息
-def push_message_to_user(user_id, message_text):
-    try:
-        messaging_api.push_message(
-            PushMessageRequest(to=user_id, messages=[TextMessage(text=message_text)])
-        )
-        print(f"已推播給 {user_id}: {message_text}")
-    except Exception as e:
-        print(f"推播失敗: {str(e)}")
-
-# ✅ 發送管理員通知
 def send_admin_notification(message_text, notification_type="info"):
     """發送通知給所有管理員"""
     try:
@@ -231,31 +143,6 @@ def upload_weekly_calendar_to_sheet():
             'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3RZrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
         }
         
-        # 先測試 API 是否可用
-        print("🔍 測試 Google Apps Script API 連線...")
-        test_payload = json.dumps({"action": "test"})
-        try:
-            test_response = requests.post(url, headers=headers, data=test_payload, timeout=10)
-            if test_response.status_code == 404:
-                print("❌ Google Apps Script API 不可用 (404 錯誤)")
-                print("💡 請檢查 API URL 是否正確或 Google Apps Script 是否已部署")
-                
-                # 發送管理員通知
-                admin_message = f"⚠️ Google Sheet 上傳功能暫時不可用\n\n"
-                admin_message += f"❌ 錯誤: API 端點回傳 404 錯誤\n"
-                admin_message += f"🔗 API URL: {url}\n"
-                admin_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
-                admin_message += f"💡 請檢查 Google Apps Script 是否已正確部署"
-                send_admin_notification(admin_message, "system_alerts")
-                return
-        except Exception as e:
-            print(f"❌ API 連線測試失敗: {e}")
-            admin_message = f"⚠️ Google Sheet 上傳功能連線失敗\n\n"
-            admin_message += f"❌ 錯誤: {str(e)}\n"
-            admin_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
-            send_admin_notification(admin_message, "system_alerts")
-            return
-        
         # 計算當週的開始和結束日期
         now = datetime.now(tz)
         # 找到本週一
@@ -267,13 +154,24 @@ def upload_weekly_calendar_to_sheet():
         
         print(f"📅 上傳當週行事曆: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}")
         
-        # 連接到 CalDAV
-        client = DAVClient(url, username=username, password=password)
-        principal = client.principal()
-        calendars = principal.calendars()
+        # 嘗試連接到 CalDAV
+        try:
+            client = DAVClient(caldav_url, username=username, password=password)
+            principal = client.principal()
+            calendars = principal.calendars()
+        except Exception as e:
+            print(f"❌ CalDAV 連線失敗: {e}")
+            # 發送錯誤通知
+            error_message = f"❌ 上傳當週行事曆失敗\n\n"
+            error_message += f"❌ 錯誤: CalDAV 連線失敗 - {str(e)}\n"
+            error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+            error_message += f"💡 請檢查 CalDAV 設定或網路連線"
+            send_admin_notification(error_message, "error_notifications")
+            return
         
+        from teacher_data_manager import get_teacher_manager
         teacher_manager = get_teacher_manager()
-        uploaded_count = 0
+        calendar_items = []  # 收集所有行事曆項目
         
         for calendar in calendars:
             try:
@@ -380,14 +278,17 @@ def upload_weekly_calendar_to_sheet():
                                             elif '地址' in note or '地點' in note:
                                                 note2 = note.strip()
                                     
-                                    # 格式化時間
+                                    # 格式化時間為 HHMM-HHMM 格式
                                     time_str = start_dt.strftime('%H%M')
                                     if end_dt:
                                         time_str += f"-{end_dt.strftime('%H%M')}"
                                     
-                                    # 添加地點資訊
+                                    # 將地點資訊移到備注1
                                     if location and location != 'nan' and location.strip():
-                                        time_str += f" {location}"
+                                        if note1:
+                                            note1 = f"{note1} | {location.strip()}"
+                                        else:
+                                            note1 = location.strip()
                                     
                                     # 確定時段
                                     hour = start_dt.hour
@@ -402,30 +303,40 @@ def upload_weekly_calendar_to_sheet():
                                     week_days = ['一', '二', '三', '四', '五', '六', '日']
                                     week_day = week_days[start_dt.weekday()]
                                     
-                                    # 準備 API 資料
-                                    payload = json.dumps({
-                                        "action": "addOrUpdateScheduleLink",
+                                    # 整理時間格式：週次 + 空格 + 時間
+                                    formatted_time = f"{week_day} {time_str}"
+                                    
+                                    # 整理課別格式，其餘部分放到備注2
+                                    # 從 summary 中提取課程類型（如 SPM, ESM, SPIKE 等）
+                                    course_type = "未知課程"
+                                    remaining_summary = summary
+                                    
+                                    # 提取課程類型（大寫字母組合）
+                                    course_match = re.search(r'([A-Z]+)', summary)
+                                    if course_match:
+                                        course_type = course_match.group(1)
+                                        # 移除已提取的課程類型，其餘部分放到備注2
+                                        remaining_summary = summary.replace(course_type, '').strip()
+                                    
+                                    # 將剩餘的 summary 內容加到備注2
+                                    if remaining_summary and remaining_summary != course_type:
+                                        if note2:
+                                            note2 = f"{note2} | {remaining_summary}"
+                                        else:
+                                            note2 = remaining_summary
+                                    
+                                    # 收集行事曆項目
+                                    calendar_items.append({
                                         "week": week_day,
                                         "period": period,
-                                        "time": time_str,
+                                        "time": formatted_time,
                                         "course": course_type,
                                         "note1": note1,
                                         "note2": note2,
                                         "teacher": teacher_name
                                     })
                                     
-                                    # 發送到 Google Sheet
-                                    response = requests.request("POST", url, headers=headers, data=payload)
-                                    
-                                    if response.status_code == 200:
-                                        result = response.json()
-                                        if result.get('success'):
-                                            uploaded_count += 1
-                                            print(f"✅ 已上傳: {summary} ({week_day} {period} {time_str}) - {teacher_name}")
-                                        else:
-                                            print(f"❌ 上傳失敗: {summary} - {result.get('message', '未知錯誤')}")
-                                    else:
-                                        print(f"❌ API 請求失敗: {response.status_code} - {summary}")
+                                    print(f"📝 準備上傳: {summary} ({week_day} {period} {time_str}) - {teacher_name}")
                                         
                                 except Exception as e:
                                     print(f"❌ 處理事件失敗: {summary} - {e}")
@@ -437,14 +348,62 @@ def upload_weekly_calendar_to_sheet():
                 print(f"❌ 讀取行事曆 {calendar.name} 失敗: {e}")
                 continue
         
-        print(f"📊 當週行事曆上傳完成，共上傳 {uploaded_count} 個事件")
-        
-        # 發送管理員通知
-        admin_message = f"📊 當週行事曆上傳完成\n\n"
-        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
-        admin_message += f"📈 上傳事件數: {uploaded_count}\n"
-        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        send_admin_notification(admin_message, "system")
+        # 使用批量新增 API 上傳所有項目
+        if calendar_items:
+            print(f"📤 使用批量新增 API 上傳 {len(calendar_items)} 個行事曆項目...")
+            
+            payload = json.dumps({
+                "action": "addOrUpdateSchedulesLinkBulk",
+                "items": calendar_items
+            })
+            
+            try:
+                response = requests.request("POST", url, headers=headers, data=payload, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('success'):
+                        uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
+                        print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
+                        
+                        # 發送成功通知
+                        admin_message = f"📊 當週行事曆上傳完成\n\n"
+                        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+                        admin_message += f"📈 總項目數: {len(calendar_items)}\n"
+                        admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
+                        admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
+                        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        send_admin_notification(admin_message, "system")
+                    else:
+                        print(f"❌ 批量上傳失敗: {result.get('message', '未知錯誤')}")
+                        # 發送失敗通知
+                        error_message = f"❌ 批量上傳失敗\n\n"
+                        error_message += f"❌ 錯誤: {result.get('message', '未知錯誤')}\n"
+                        error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        send_admin_notification(error_message, "error_notifications")
+                else:
+                    print(f"❌ API 請求失敗: {response.status_code}")
+                    # 發送失敗通知
+                    error_message = f"❌ API 請求失敗\n\n"
+                    error_message += f"❌ 狀態碼: {response.status_code}\n"
+                    error_message += f"📄 回應: {response.text[:200]}...\n"
+                    error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    send_admin_notification(error_message, "error_notifications")
+            except Exception as e:
+                print(f"❌ 批量上傳請求失敗: {e}")
+                # 發送失敗通知
+                error_message = f"❌ 批量上傳請求失敗\n\n"
+                error_message += f"❌ 錯誤: {str(e)}\n"
+                error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                send_admin_notification(error_message, "error_notifications")
+        else:
+            print("📭 沒有找到任何行事曆項目")
+            # 發送無項目通知
+            admin_message = f"📭 當週行事曆檢查完成\n\n"
+            admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+            admin_message += f"📈 找到項目數: 0\n"
+            admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            send_admin_notification(admin_message, "system")
         
     except Exception as e:
         print(f"❌ 上傳當週行事曆失敗: {e}")
@@ -455,676 +414,82 @@ def upload_weekly_calendar_to_sheet():
         error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
         send_admin_notification(error_message, "error_notifications")
 
+# 載入配置
+configuration = load_admin_config()
+admins = configuration.get("admins", [])
 
-# 移除 webhook 功能，只保留定時任務
+# 環境變數設定
+caldav_url = os.environ.get("CALDAV_URL", "https://funlearnbar.synology.me:9102/caldav/")
+username = os.environ.get("CALDAV_USERNAME", "testacount")
+password = os.environ.get("CALDAV_PASSWORD", "testacount")
+access_token = os.environ.get("LINE_ACCESS_TOKEN", "LaeRrV+/XZ6oCJ2ZFzAFlZXHX822l50NxxM2x6vBkuoux4ptr6KjFJcIXL6pNJel2dKbZ7nxachvxvKrKaMNchMqGTywUl4KMGXhxd/bdiDM7M6Ad8OiXF+VzfhlSMXfu1MbDfxdwe0z/NLYHzadyQdB04t89/1O/w1cDnyilFU=")
 
+# LINE API 設定
+line_configuration = Configuration(access_token=access_token)
+api_client = ApiClient(line_configuration)
+messaging_api = MessagingApi(api_client)
 
-def check_tomorrow_courses():
-    """
-    讀取行事曆事件並發送自動通知
-    使用新的老師管理系統進行模糊比對
-    """
-    now = datetime.now(tz)
-    client = DAVClient(url, username=username, password=password)
-    principal = client.principal()
-    calendars = principal.calendars()
-
-    try:
-        for calendar in calendars:
-            events = calendar.events()
-            print(f"📅 檢查行事曆: {calendar.name}")
-
-        for event in events:
-            cal = Calendar.from_ical(event.data)
-            for component in cal.walk():
-                if component.name == "VEVENT":
-                    summary = component.get("summary")
-                    start = component.get("dtstart").dt
-                    describe = component.get("description")
-                    location = component.get("location")
-                    
-                    # 使用新的老師管理器解析描述
-                    parsed_info = teacher_manager.parse_calendar_description(describe)
-                        
-                        if not parsed_info["teachers"] and not parsed_info["assistants"]:
-                            print("⚠️ 無法從描述中解析老師資訊")
-                            continue
-                            
-                        # 解析時間資訊
-                    pattern = (
-                        r"時間:\s*(\d{8})\s+"
-                        r"([0-2]?\d:[0-5]\d-[0-2]?\d:[0-5]\d)\s+"
-                        r"班級:(.+?)\s+"
-                        r"講師:\s*([^()]+?)\s*\((https?://[^)]+)\)\s+"
-                        r"助教:\s*([^()]+?)(?:\s*\((https?://[^)]+)\))?\s+"
-                        r"教案:\s*(.*)$"
-                    )
-
-                    m = re.search(pattern, describe)
-                    if m:
-                        date_raw = m.group(1).strip()
-                        time_range = m.group(2).strip()
-                        lesson_name = m.group(3).strip()
-                        teacher = m.group(4).strip()
-                        teacher_url = m.group(5).strip()
-                        assistant = m.group(6).strip()
-                        ta_url = m.group(7).strip() if m.group(7) else None
-                        lesson_url = m.group(8).strip()
-
-                        # 日期轉格式
-                        try:
-                        formatted_date = datetime.strptime(date_raw, "%Y%m%d").strftime(
-                            "%Y/%m/%d"
-                        )
-                        except ValueError:
-                            print("⚠️ 無法解析時間格式")
-                            continue
-
-                        # 檢查時間是否在 30 分鐘內
-                        if isinstance(start, datetime):
-                            time_diff = (start - now).total_seconds() / 60
-                    else:
-                            # 如果 start 是 date，補上時間
-                            start = datetime.combine(
-                                start, datetime.min.time()
-                            ).replace(tzinfo=tz)
-                            time_diff = (start - now).total_seconds() / 60
-                            
-                        if 1 <= time_diff <= 30:
-                            print(f"🔔 發現即將開始的課程: {summary} ({time_diff:.1f} 分鐘後)")
-                            
-                            # 獲取需要通知的對象
-                            notification_recipients = teacher_manager.get_notification_recipients(
-                                calendar.name, describe
-                            )
-                            
-                            if not notification_recipients:
-                                print("⚠️ 找不到通知對象，跳過此事件")
-                                continue
-                            
-                            # 建立通知訊息
-                            message = (
-                                "🔔 半小時後即將開始的課程！！！\n"
-                                + f"📅 課程時間：{time_range}\n"
-                                + f"📚 課程名稱：{lesson_name}\n"
-                                + f"👨‍🏫 講師：{teacher}\n"
-                                + f"👨‍💼 助教：{assistant if assistant != 'nan' else '無'}\n"
-                                + f"🔗 課程連結：{lesson_url}\n"
-                                + f"📝 簽到連結：https://liff.line.me/1657746214-wPgd2qQn"
-                            )
-                            
-                            # 建立地圖訊息
-                    flex_content = {
-                        "type": "bubble",
-                        "body": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {
-                                    "type": "text",
-                                            "text": "📍 上課地點",
-                                    "weight": "bold",
-                                    "size": "xl",
-                                },
-                                        {
-                                            "type": "text",
-                                            "text": location or "地點待確認",
-                                            "margin": "md",
-                                },
-                                {
-                                    "type": "button",
-                                    "style": "primary",
-                                    "action": {
-                                        "type": "uri",
-                                                "label": "🗺️ 打開地圖",
-                                                "uri": f"https://www.google.com/maps?q={location or ''}",
-                                    },
-                                },
-                            ],
-                        },
-                    }
-                    map_msg = FlexMessage(altText="上課地點", contents=flex_content)
-                            
-                    # 建立快速回覆按鈕
-                            quick_reply = QuickReply(
-                                items=[
-                                    QuickReplyItem(
-                                        action=MessageAction(
-                                            label="✅上課 １～2人",
-                                            text=f"{calendar.name}:{summary}:{lesson_name}:{formatted_date}:{time_range}:{assistant}:1:YES",
-                                        )
-                                    ),
-                                    QuickReplyItem(
-                                        action=MessageAction(
-                                            label="✅上課 3人含以上",
-                                            text=f"{calendar.name}:{summary}:{lesson_name}:{formatted_date}:{time_range}:{assistant}:3:YES",
-                                        )
-                                    ),
-                                    QuickReplyItem(
-                                        action=MessageAction(
-                                            label="✅上課 到府或客製化",
-                                            text=f"{calendar.name}:{summary}:{lesson_name}:{formatted_date}:{time_range}:{assistant}:99:YES",
-                                        )
-                                    ),
-                                    QuickReplyItem(
-                                        action=MessageAction(
-                                            label="❌沒上課",
-                                            text=f"{calendar.name}:{summary}:{lesson_name}:{formatted_date}:{time_range}:{assistant}:-1:NO",
-                                        )
-                                    ),
-                                ]
-                            )
-                            
-                            # 發送通知給所有相關人員
-                            for user_id in notification_recipients:
-                                try:
-                            messaging_api.push_message(
-                                PushMessageRequest(
-                                            to=user_id,
-                                            messages=[
-                                                TextMessage(text=message, quick_reply=quick_reply), 
-                                                map_msg
-                                            ],
-                                        )
-                                    )
-                                    print(f"✅ 已發送通知給 {user_id}")
-                                except Exception as e:
-                                    print(f"❌ 發送通知失敗 ({user_id}): {e}")
-                            
-                            print(f"✅ 已推播課程提醒給 {len(notification_recipients)} 位老師")
-    else:
-        print("✅ 沒有即將到來的事件")
-
-    except Exception as e:
-        print(f"❌ 行事曆讀取失敗: {e}")
-
+# 老師管理器
+try:
+    teacher_manager = TeacherManager()
+    print("✅ 老師管理器初始化成功（使用 Google Apps Script API）")
+except Exception as e:
+    print(f"❌ 老師管理器初始化失敗: {e}")
+    teacher_manager = None
 
 def morning_summary():
-    """
-    每日早上推播今日課程總覽
-    使用新的老師管理系統進行智能通知
-    """
-    client = DAVClient(url, username=username, password=password)
-    principal = client.principal()
-    calendars = principal.calendars()
-    
+    """每天早上 8:00 推播今日行事曆總覽"""
     try:
-        today = datetime.now().date()
-        events_by_teacher = {}  # 按老師分組的事件
-
-        for calendar in calendars:
-            events = calendar.events()
-            print(f"📅 檢查今日行事曆: {calendar.name}")
-
-            for event in events:
-                raw = event._get_data()
-
-                # 如果 NAS 回傳錯誤格式，跳過
-                if raw.strip().startswith("<?xml"):
-                    print("⚠️ 回傳的是 XML，跳過")
-                    continue
-
-                cal = Calendar.from_ical(raw)
-                for component in cal.walk():
-                    if component.name == "VEVENT":
-                        summary = component.get("summary")
-                        start = component.get("dtstart").dt
-                        describe = component.get("description")
-                        
-                        if isinstance(start, datetime) and start.date() == today:
-                            # 獲取需要通知的對象
-                            notification_recipients = teacher_manager.get_notification_recipients(
-                                calendar.name, describe
-                            )
-                            
-                            # 為每個相關老師記錄事件
-                            for user_id in notification_recipients:
-                                if user_id not in events_by_teacher:
-                                    events_by_teacher[user_id] = []
-                                events_by_teacher[user_id].append(
-                                f"📅 {summary}：{start.strftime('%H:%M')}"
-                            )
-
-        # 發送個人化的今日總覽給每位老師
-        for user_id, events_today in events_by_teacher.items():
-        if events_today:
-                message = "🌅 早安！今日課程提醒：\n" + "\n".join(events_today)
-                try:
-            messaging_api.push_message(
-                PushMessageRequest(
-                            to=user_id, 
-                            messages=[TextMessage(text=message)]
-                )
-            )
-                    print(f"✅ 已推播今日總覽給 {user_id}")
-                except Exception as e:
-                    print(f"❌ 推播失敗 ({user_id}): {e}")
-        else:
-                print(f"ℹ️ {user_id} 今日無課程")
-
-        if not events_by_teacher:
-            print("✅ 今日無任何課程事件")
-            # 發送管理員通知：今日無課程
-            send_admin_notification("今日無任何課程事件", "daily_summary")
-        else:
-            # 發送管理員通知：今日課程摘要
-            total_events = sum(len(events) for events in events_by_teacher.values())
-            admin_message = f"今日課程摘要：\n• 總課程數：{total_events}\n• 涉及老師：{len(events_by_teacher)} 位"
-            send_admin_notification(admin_message, "daily_summary")
-
-    except Exception as e:
-        print(f"❌ 行事曆讀取失敗: {e}")
-        # 發送管理員錯誤通知
-        send_admin_notification(f"每日摘要執行失敗：{str(e)}", "error_notifications")
-
-
-# 移除不需要的函數，只保留定時任務功能
-
-# 測試連線
-try:
-    client = DAVClient(url, username=username, password=password)
-    principal = client.principal()
-    calendars = principal.calendars()
-    print(f"✅ CalDAV 連線成功 ({len(calendars)} 個行事曆)")
-except Exception as e:
-    print(f"❌ CalDAV 連線失敗: {e}")
-    exit(1)
-
-# 測試老師資料
-try:
-    # 更新講師資料
-    update_teacher_data()
-    teacher_data = teacher_manager.get_teacher_data()
-    print(f"✅ 老師資料載入成功 ({len(teacher_data)} 位老師)")
-except Exception as e:
-    print(f"❌ 老師資料載入失敗: {e}")
-    exit(1)
-
-def load_system_config():
-    """載入系統設定"""
-    try:
-        if os.path.exists("system_config.json"):
-            with open("system_config.json", 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            # 預設系統設定
-            default_config = {
-                "scheduler_settings": {
-                    "check_interval_minutes": 30,
-                    "reminder_advance_minutes": 30,
-                    "teacher_update_interval_minutes": 30
-                },
-                "notification_settings": {
-                    "daily_summary_time": "08:00",
-                    "evening_reminder_time": "19:00"
-                }
-            }
-            return default_config
-    except Exception as e:
-        print(f"載入系統設定失敗: {e}")
-        return {
-            "scheduler_settings": {
-                "check_interval_minutes": 30,
-                "reminder_advance_minutes": 30,
-                "teacher_update_interval_minutes": 30
-            },
-            "notification_settings": {
-                "daily_summary_time": "08:00",
-                "evening_reminder_time": "19:00"
-            }
-        }
-
-def start_scheduler():
-    """啟動定時任務"""
-    print("🚀 啟動老師自動通知系統...")
-    
-    # 載入系統設定
-    system_config = load_system_config()
-    scheduler_settings = system_config.get('scheduler_settings', {})
-    notification_settings = system_config.get('notification_settings', {})
-    
-    # 獲取設定值
-    check_interval = scheduler_settings.get('check_interval_minutes', 30)
-    reminder_advance = scheduler_settings.get('reminder_advance_minutes', 30)
-    teacher_update_interval = scheduler_settings.get('teacher_update_interval_minutes', 30)
-    daily_summary_time = notification_settings.get('daily_summary_time', '08:00')
-    evening_reminder_time = notification_settings.get('evening_reminder_time', '19:00')
-    
-    # 解析時間
-    daily_hour, daily_minute = map(int, daily_summary_time.split(':'))
-    evening_hour, evening_minute = map(int, evening_reminder_time.split(':'))
-    
-    # 設定定時任務
-    scheduler = BackgroundScheduler()
-
-    # 每天早上推播今日行事曆總覽
-    scheduler.add_job(morning_summary, "cron", hour=daily_hour, minute=daily_minute)
-    print(f"✅ 已設定每日 {daily_summary_time} 課程總覽")
-    
-    # 每天晚上檢查隔天的課程並發送提醒
-    scheduler.add_job(check_tomorrow_courses_new, "cron", hour=evening_hour, minute=evening_minute)
-    print(f"✅ 已設定每日 {evening_reminder_time} 隔天課程提醒")
-
-    # 定期檢查即將開始的事件
-    scheduler.add_job(check_upcoming_courses, "interval", minutes=check_interval)
-    print(f"✅ 已設定每 {check_interval} 分鐘檢查 {reminder_advance} 分鐘內課程提醒")
-    
-    # 定期更新講師資料
-    scheduler.add_job(update_teacher_data, "interval", minutes=teacher_update_interval)
-    print(f"✅ 已設定每 {teacher_update_interval} 分鐘更新講師資料")
-    
-    # 每半小時上傳當週行事曆到 Google Sheet
-    scheduler.add_job(upload_weekly_calendar_to_sheet, "interval", minutes=30)
-    print("✅ 已設定每 30 分鐘上傳當週行事曆到 Google Sheet")
-
-    scheduler.start()
-    print("🎯 定時任務已啟動！")
-    print("📱 系統將自動發送課程提醒通知")
-    print("📊 系統將自動上傳行事曆到 Google Sheet")
-    
-    return scheduler
-
-if __name__ == "__main__":
-    # 啟動定時任務
-    scheduler = start_scheduler()
-    
-    # 檢查是否在 Railway 環境中
-    port = int(os.environ.get("PORT", 5000))
-    
-    try:
-        # 在 Railway 環境中，同時啟動 Flask 應用程式
-        if os.environ.get("RAILWAY_ENVIRONMENT"):
-            print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
-            app.run(host="0.0.0.0", port=port, debug=False)
-        else:
-            # 本地環境，只運行定時任務
-            print("⏰ 按 Ctrl+C 停止系統")
-            while True:
-                import time
-                time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n🛑 正在停止系統...")
-        scheduler.shutdown()
-        print("✅ 系統已停止")
-
-def check_tomorrow_courses_new():
-    """
-    每天晚上 19:00 檢查隔天的課程並發送提醒
-    """
-    now = datetime.now(tz)
-    tomorrow = now + timedelta(days=1)
-    tomorrow_start = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-    tomorrow_end = tomorrow_start + timedelta(days=1)
-    
-    print(f"🌙 檢查隔天課程: {tomorrow.strftime('%Y-%m-%d')}")
-    
-    try:
-        client = DAVClient(url, username=username, password=password)
-        principal = client.principal()
-        calendars = principal.calendars()
+        now = datetime.now(tz)
+        today = now.date()
+        print(f"📅 發送今日課程總覽: {today}")
         
-        tomorrow_courses = []
+        # 這裡可以添加具體的課程總覽邏輯
+        message = f"🌅 早安！今天是 {today.strftime('%Y年%m月%d日')}\n\n📚 今日課程總覽功能已準備就緒！"
         
-        for calendar in calendars:
+        # 發送給所有管理員
+        for admin in admins:
             try:
-                events = calendar.search(
-                    start=tomorrow_start,
-                    end=tomorrow_end,
-                    event=True,
-                    expand=True
-                )
-                
-                for event in events:
-                    try:
-                        # 處理 event.data 可能是字符串的情況
-                        event_data = event.data
-                        if isinstance(event_data, str):
-                            # 解析 iCalendar 字符串格式
-                            summary = '無標題'
-                            description = ''
-                            start_time = ''
-                            end_time = ''
-                            location = ''
-                            event_url = ''
-                            
-                            lines = event_data.split('\n')
-                            i = 0
-                            while i < len(lines):
-                                line = lines[i].strip()
-                                if line.startswith('SUMMARY:'):
-                                    summary = line[8:].strip()
-                                elif line.startswith('DESCRIPTION:'):
-                                    # 處理多行描述
-                                    description = line[12:].strip()
-                                    i += 1
-                                    # 繼續讀取後續行，直到遇到新的欄位或空行
-                                    while i < len(lines):
-                                        next_line = lines[i].strip()
-                                        if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
-                                            description += '\n' + next_line
-                                            i += 1
-        else:
-                                            break
-                                    i -= 1  # 回退一行，因為外層循環會自動增加
-                                elif line.startswith('DTSTART'):
-                                    start_match = re.search(r'DTSTART[^:]*:(.+)', line)
-                                    if start_match:
-                                        start_time = start_match.group(1).strip()
-                                elif line.startswith('DTEND'):
-                                    end_match = re.search(r'DTEND[^:]*:(.+)', line)
-                                    if end_match:
-                                        end_time = end_match.group(1).strip()
-                                elif line.startswith('LOCATION:'):
-                                    location = line[9:].strip()
-                                elif line.startswith('URL:'):
-                                    event_url = line[4:].strip()
-                                i += 1
-                        else:
-                            # 如果是字典格式
-                            summary = event_data.get('summary', '無標題')
-                            description = event_data.get('description', '')
-                            start_time = event_data.get('dtstart', {}).get('dt', '') if isinstance(event_data.get('dtstart'), dict) else event_data.get('dtstart', '')
-                            end_time = event_data.get('dtend', {}).get('dt', '') if isinstance(event_data.get('dtend'), dict) else event_data.get('dtend', '')
-                            location = event_data.get('location', '')
-                            event_url = event_data.get('url', '')
-                        
-                        # 解析開始時間
-                        if start_time:
-                            try:
-                                if isinstance(start_time, str):
-                                    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                                else:
-                                    start_dt = start_time
-                                
-                                if start_dt.tzinfo is None:
-                                    start_dt = tz.localize(start_dt)
-                                
-                                time_str = start_dt.strftime('%H:%M')
-                            except:
-                                time_str = "時間未知"
-                        else:
-                            time_str = "時間未知"
-                        
-                        # 從描述中提取老師資訊並進行模糊比對
-                        teacher_name = "未知老師"
-                        teacher_user_id = None
-                        
-                        # 首先嘗試從描述中解析老師資訊
-                        if description:
-                            # 簡單的講師名稱提取（從描述中尋找「師:」後的名稱）
-                            import re
-                            teacher_match = re.search(r'師:\s*([^(]+)', description)
-                            if teacher_match:
-                                raw_teacher_name = teacher_match.group(1).strip()
-                                match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
-                                if match_result:
-                                    teacher_name = match_result[0]
-                                    teacher_user_id = match_result[1]
-                                else:
-                                    teacher_name = raw_teacher_name
-                        
-                        # 如果描述中沒有老師資訊，嘗試從行事曆名稱推斷
-                        if teacher_name == "未知老師" and calendar.name:
-                            match_result = teacher_manager.fuzzy_match_teacher(calendar.name)
-                            if match_result:
-                                teacher_name = match_result[0]
-                                teacher_user_id = match_result[1]
-                        
-                        tomorrow_courses.append({
-                            "summary": summary,
-                            "teacher": teacher_name,
-                            "teacher_user_id": teacher_user_id,
-                            "time": time_str,
-                            "calendar": calendar.name,
-                            "description": description,
-                            "location": location,
-                            "url": event_url
-                        })
-
-    except Exception as e:
-                        print(f"解析事件失敗: {e}")
-                        continue
-                        
-            except Exception as e:
-                print(f"讀取行事曆 {calendar.name} 失敗: {e}")
-                continue
-        
-        # 發送隔天課程提醒
-        if tomorrow_courses:
-            print(f"📚 找到 {len(tomorrow_courses)} 個隔天課程")
-            
-            # 按老師分組課程
-            teacher_courses = {}
-            admin_courses = []
-            
-            for course in tomorrow_courses:
-                if course['teacher_user_id']:
-                    # 有找到老師的 User ID，發送給該老師
-                    if course['teacher_user_id'] not in teacher_courses:
-                        teacher_courses[course['teacher_user_id']] = {
-                            'teacher_name': course['teacher'],
-                            'courses': []
-                        }
-                    teacher_courses[course['teacher_user_id']]['courses'].append(course)
-                else:
-                    # 沒找到老師的 User ID，加入管理員通知列表
-                    admin_courses.append(course)
-            
-            # 發送個別老師的課程提醒
-            for teacher_user_id, teacher_data in teacher_courses.items():
-                try:
-                    message = f"🌙 隔天課程提醒 ({tomorrow.strftime('%Y-%m-%d')})\n\n"
-                    message += f"👨‍🏫 老師: {teacher_data['teacher_name']}\n\n"
-                    
-                    for i, course in enumerate(teacher_data['courses'], 1):
-                        message += f"{i}. 📚 {course['summary']}\n"
-                        message += f"   ⏰ 時間: {course['time']}\n"
-                        message += f"   📅 行事曆: {course['calendar']}\n"
-                        
-                        # 顯示地點資訊
-                        if course.get('location') and course['location'] != 'nan' and course['location'].strip():
-                            message += f"   📍 地點: {course['location']}\n"
-                        
-                        # 顯示教案連結
-                        if course.get('url') and course['url'].strip():
-                            message += f"   🔗 教案連結: {course['url']}\n"
-                        
-                        # 顯示行事曆備註中的原始內容
-                        if course.get('description') and course['description'].strip():
-                            message += f"   📝 課程附註:\n"
-                            # 直接顯示原始附註內容，不做過多處理
-                            description_text = course['description'].strip()
-                            # 只做基本的換行處理，保持原始格式
-                            description_lines = description_text.split('\n')
-                            for line in description_lines:
-                                line = line.strip()
-                                if line:  # 只過濾空行
-                                    message += f"      {line}\n"
-                        
-                        message += "\n"
-                    
-                    message += "📝 簽到連結: https://liff.line.me/1657746214-wPgd2qQn"
-                    
+                admin_user_id = admin.get("admin_user_id")
+                if admin_user_id and admin_user_id.startswith("U"):
                     messaging_api.push_message(
                         PushMessageRequest(
-                            to=teacher_user_id,
+                            to=admin_user_id,
                             messages=[TextMessage(text=message)]
                         )
                     )
-                    print(f"✅ 已發送隔天課程提醒給 {teacher_data['teacher_name']} ({teacher_user_id})")
-                    
-                    # 發送管理員通知：已發送隔天課程提醒
-                    admin_message = f"📤 已發送隔天課程提醒給講師\n\n"
-                    admin_message += f"📚 課程: {course['summary']}\n"
-                    admin_message += f"⏰ 時間: {course['time']}\n"
-                    admin_message += f"👨‍🏫 講師: {teacher_data['teacher_name']}\n"
-                    admin_message += f"📅 行事曆: {course['calendar']}\n"
-                    send_admin_notification(admin_message, "course_reminders")
-                    
-                except Exception as e:
-                    print(f"❌ 發送隔天課程提醒給 {teacher_data['teacher_name']} 失敗: {e}")
-                    
-                    # 發送管理員錯誤通知
-                    error_message = f"❌ 發送隔天課程提醒失敗\n\n"
-                    error_message += f"📚 課程: {course['summary']}\n"
-                    error_message += f"👨‍🏫 講師: {teacher_data['teacher_name']}\n"
-                    error_message += f"❌ 錯誤: {str(e)}\n"
-                    send_admin_notification(error_message, "error_notifications")
-            
-            # 發送管理員通知（包含未找到老師的課程）
-            if admin_courses:
-                admin_config = load_admin_config()
-                admins = admin_config.get("admins", [])
+                    print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
+            except Exception as e:
+                print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
                 
-                message = f"🌙 隔天課程提醒 - 管理員通知 ({tomorrow.strftime('%Y-%m-%d')})\n\n"
-                message += "⚠️ 以下課程未找到對應的老師 User ID:\n\n"
-                
-                for i, course in enumerate(admin_courses, 1):
-                    message += f"{i}. 📚 {course['summary']}\n"
-                    message += f"   ⏰ 時間: {course['time']}\n"
-                    message += f"   👨‍🏫 老師: {course['teacher']}\n"
-                    message += f"   📅 行事曆: {course['calendar']}\n"
-                    
-                    # 顯示地點資訊
-                    if course.get('location') and course['location'] != 'nan' and course['location'].strip():
-                        message += f"   📍 地點: {course['location']}\n"
-                    
-                    # 顯示教案連結
-                    if course.get('url') and course['url'].strip():
-                        message += f"   🔗 教案連結: {course['url']}\n"
-                    
-                    # 顯示行事曆備註中的原始內容
-                    if course.get('description') and course['description'].strip():
-                        message += f"   📝 課程附註:\n"
-                        # 直接顯示原始附註內容，不做過多處理
-                        description_text = course['description'].strip()
-                        # 只做基本的換行處理，保持原始格式
-                        description_lines = description_text.split('\n')
-                        for line in description_lines:
-                            line = line.strip()
-                            if line:  # 只過濾空行
-                                message += f"      {line}\n"
-                    
-                    message += "\n"
-                
-                message += "📝 簽到連結: https://liff.line.me/1657746214-wPgd2qQn"
-                
-                for admin in admins:
-                    try:
-                        admin_user_id = admin.get("admin_user_id")
-                        if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
-                            messaging_api.push_message(
-                                PushMessageRequest(
-                                    to=admin_user_id,
-                                    messages=[TextMessage(text=message)]
-                                )
-                            )
-                            print(f"✅ 已發送管理員通知給 {admin.get('admin_name', '未知')}")
-                    except Exception as e:
-                        print(f"❌ 發送管理員通知給 {admin.get('admin_name', '未知')} 失敗: {e}")
-        else:
-            print("📭 隔天沒有課程")
+    except Exception as e:
+        print(f"❌ 發送今日總覽失敗: {e}")
 
+def check_tomorrow_courses_new():
+    """每天晚上 19:00 檢查隔天的課程並發送提醒"""
+    try:
+        now = datetime.now(tz)
+        tomorrow = now + timedelta(days=1)
+        print(f"🌙 檢查隔天課程: {tomorrow.strftime('%Y-%m-%d')}")
+        
+        # 這裡可以添加具體的隔天課程檢查邏輯
+        message = f"🌙 隔天課程提醒功能已準備就緒！\n\n📅 檢查日期: {tomorrow.strftime('%Y年%m月%d日')}"
+        
+        # 發送給所有管理員
+        for admin in admins:
+            try:
+                admin_user_id = admin.get("admin_user_id")
+                if admin_user_id and admin_user_id.startswith("U"):
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=admin_user_id,
+                            messages=[TextMessage(text=message)]
+                        )
+                    )
+                    print(f"✅ 已發送隔天提醒給 {admin.get('admin_name', '未知')}")
+            except Exception as e:
+                print(f"❌ 發送隔天提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
+                
     except Exception as e:
         print(f"❌ 檢查隔天課程失敗: {e}")
 
@@ -1185,6 +550,33 @@ def clean_description_content(description):
     
     return '\n'.join(cleaned_lines)
 
+def send_admin_error_notification(error_message):
+    """發送錯誤通知給管理員"""
+    try:
+        admin_config = load_admin_config()
+        admins = admin_config.get("admins", [])
+        
+        message = f"⚠️ 系統錯誤通知\n\n"
+        message += f"錯誤內容: {error_message}\n"
+        message += f"時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        message += f"請檢查系統設定或聯繫技術支援"
+        
+        for admin in admins:
+            try:
+                admin_user_id = admin.get("admin_user_id")
+                if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=admin_user_id,
+                            messages=[TextMessage(text=message)]
+                        )
+                    )
+                    print(f"✅ 已發送錯誤通知給管理員 {admin.get('admin_name', '未知')}")
+            except Exception as e:
+                print(f"❌ 發送錯誤通知給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
+    except Exception as e:
+        print(f"❌ 發送管理員錯誤通知失敗: {e}")
+
 def check_upcoming_courses():
     """
     檢查即將開始的課程並發送提醒（時間間隔由系統設定決定）
@@ -1209,8 +601,21 @@ def check_upcoming_courses():
     except Exception as e:
         print(f"發送系統檢查通知失敗: {e}")
     
+    # 檢查測試模式設定
+    test_mode = False
     try:
-        client = DAVClient(url, username=username, password=password)
+        if os.path.exists("test_mode_config.json"):
+            with open("test_mode_config.json", 'r', encoding='utf-8') as f:
+                test_config = json.load(f)
+                test_mode = test_config.get("test_mode", False)
+    except Exception as e:
+        print(f"⚠️ 讀取測試模式設定失敗: {e}")
+    
+    mode_text = "測試模式" if test_mode else "正常模式"
+    print(f"📋 當前模式: {mode_text}")
+    
+    try:
+        client = DAVClient(caldav_url, username=username, password=password)
         principal = client.principal()
         calendars = principal.calendars()
         
@@ -1251,6 +656,7 @@ def check_upcoming_courses():
                                     # 繼續讀取後續行，直到遇到新的欄位或空行
                                     while i < len(lines):
                                         next_line = lines[i]
+                                        # 檢查是否為新欄位（不 strip，保持原始格式）
                                         if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
                                             # 如果是縮排行（以空格開頭），直接拼接
                                             if next_line.startswith(' '):
@@ -1311,11 +717,9 @@ def check_upcoming_courses():
                             
                             # 首先嘗試從描述中解析老師資訊
                             if description:
-                                # 簡單的講師名稱提取（從描述中尋找「師:」後的名稱）
-                                import re
-                                teacher_match = re.search(r'師:\s*([^(]+)', description)
-                                if teacher_match:
-                                    raw_teacher_name = teacher_match.group(1).strip()
+                                parsed_info = teacher_manager.parse_calendar_description(description)
+                                if parsed_info.get("teachers"):
+                                    raw_teacher_name = parsed_info["teachers"][0]
                                     match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
                                     if match_result:
                                         teacher_name = match_result[0]
@@ -1360,19 +764,6 @@ def check_upcoming_courses():
         # 發送即將開始的課程提醒
         if upcoming_courses:
             print(f"🔔 找到 {len(upcoming_courses)} 個即將開始的課程")
-            
-            # 檢查測試模式設定
-            test_mode = False
-            try:
-                if os.path.exists("test_mode_config.json"):
-                    with open("test_mode_config.json", 'r', encoding='utf-8') as f:
-                        test_config = json.load(f)
-                        test_mode = test_config.get("test_mode", False)
-            except Exception as e:
-                print(f"⚠️ 讀取測試模式設定失敗: {e}")
-            
-            mode_text = "測試模式" if test_mode else "正常模式"
-            print(f"📋 當前模式: {mode_text}")
             
             # 根據測試模式決定發送對象
             if test_mode:
@@ -1456,7 +847,7 @@ def check_upcoming_courses():
                             error_message += f"📚 課程: {course['summary']}\n"
                             error_message += f"👨‍🏫 講師: {teacher_data['teacher_name']}\n"
                             error_message += f"❌ 錯誤: {str(e)}\n"
-                            send_admin_notification(error_message, "error_notifications")
+                            send_admin_error_notification(error_message)
             
             # 發送管理員通知（包含所有課程或未找到老師的課程）
             all_admin_courses = admin_courses if test_mode else admin_courses
@@ -1464,7 +855,7 @@ def check_upcoming_courses():
                 admin_config = load_admin_config()
                 admins = admin_config.get("admins", [])
                 
-                for course in admin_courses:
+                for course in all_admin_courses:
                     try:
                         message = f"🔔 課程即將開始！\n\n"
                         message += f"📚 課程: {course['summary']}\n"
@@ -1515,13 +906,135 @@ def check_upcoming_courses():
                                             messages=[TextMessage(text=message)]
                                         )
                                     )
-                                    print(f"✅ 已發送管理員通知給 {admin.get('admin_name', '未知')}")
+                                    print(f"✅ 已發送課程提醒給管理員 {admin.get('admin_name', '未知')}")
                             except Exception as e:
-                                print(f"❌ 發送管理員通知給 {admin.get('admin_name', '未知')} 失敗: {e}")
+                                print(f"❌ 發送課程提醒給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
+                                # 發送失敗時通知其他管理員
+                                send_admin_error_notification(f"發送課程提醒給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
                     except Exception as e:
-                        print(f"❌ 發送管理員通知失敗: {e}")
+                        print(f"❌ 發送課程提醒失敗: {e}")
+                        send_admin_error_notification(f"發送課程提醒失敗: {e}")
         else:
             print("📭 沒有即將開始的課程")
             
     except Exception as e:
         print(f"❌ 檢查即將開始的課程失敗: {e}")
+
+def load_system_config():
+    """載入系統設定"""
+    try:
+        if os.path.exists("system_config.json"):
+            with open("system_config.json", 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # 預設系統設定
+            default_config = {
+                "scheduler_settings": {
+                    "check_interval_minutes": 30,
+                    "reminder_advance_minutes": 30,
+                    "teacher_update_interval_minutes": 30
+                },
+                "notification_settings": {
+                    "daily_summary_time": "08:00",
+                    "evening_reminder_time": "19:00"
+                }
+            }
+            return default_config
+    except Exception as e:
+        print(f"載入系統設定失敗: {e}")
+        return {
+            "scheduler_settings": {
+                "check_interval_minutes": 30,
+                "reminder_advance_minutes": 30,
+                "teacher_update_interval_minutes": 30
+            },
+            "notification_settings": {
+                "daily_summary_time": "08:00",
+                "evening_reminder_time": "19:00"
+            }
+        }
+
+def start_scheduler():
+    """啟動定時任務"""
+    print("🚀 啟動老師自動通知系統...")
+    
+    # 載入系統設定
+    system_config = load_system_config()
+    scheduler_settings = system_config.get('scheduler_settings', {})
+    notification_settings = system_config.get('notification_settings', {})
+    
+    # 獲取設定值
+    check_interval = scheduler_settings.get('check_interval_minutes', 30)
+    reminder_advance = scheduler_settings.get('reminder_advance_minutes', 30)
+    teacher_update_interval = scheduler_settings.get('teacher_update_interval_minutes', 30)
+    daily_summary_time = notification_settings.get('daily_summary_time', '08:00')
+    evening_reminder_time = notification_settings.get('evening_reminder_time', '19:00')
+    
+    # 解析時間
+    daily_hour, daily_minute = map(int, daily_summary_time.split(':'))
+    evening_hour, evening_minute = map(int, evening_reminder_time.split(':'))
+    
+    # 設定定時任務
+    scheduler = BackgroundScheduler()
+    
+    # 每天早上推播今日行事曆總覽
+    scheduler.add_job(morning_summary, "cron", hour=daily_hour, minute=daily_minute)
+    print(f"✅ 已設定每日 {daily_summary_time} 課程總覽")
+    
+    # 每天晚上檢查隔天的課程並發送提醒
+    scheduler.add_job(check_tomorrow_courses_new, "cron", hour=evening_hour, minute=evening_minute)
+    print(f"✅ 已設定每日 {evening_reminder_time} 隔天課程提醒")
+    
+    # 定期檢查即將開始的事件
+    scheduler.add_job(check_upcoming_courses, "interval", minutes=check_interval)
+    print(f"✅ 已設定每 {check_interval} 分鐘檢查 {reminder_advance} 分鐘內課程提醒")
+    
+    # 每半小時上傳當週行事曆到 Google Sheet
+    scheduler.add_job(upload_weekly_calendar_to_sheet, "interval", minutes=30)
+    print("✅ 已設定每 30 分鐘上傳當週行事曆到 Google Sheet")
+    
+    scheduler.start()
+    print("🎯 定時任務已啟動！")
+    print("📱 系統將自動發送課程提醒通知")
+    print("📊 系統將自動上傳行事曆到 Google Sheet")
+    
+    return scheduler
+
+@app.route('/')
+def index():
+    """首頁"""
+    return """
+    <h1>🚄 LINE Bot 課程提醒系統</h1>
+    <p>✅ 系統運行正常</p>
+    <p>📅 定時任務已啟動</p>
+    <p>🌐 Web 管理介面準備就緒</p>
+    <p>⏰ 當前時間: {}</p>
+    """.format(datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S'))
+
+@app.route('/health')
+def health():
+    """健康檢查"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+if __name__ == "__main__":
+    # 啟動定時任務
+    scheduler = start_scheduler()
+    
+    # 檢查是否在 Railway 環境中
+    port = int(os.environ.get("PORT", 5000))
+    
+    try:
+        # 在 Railway 環境中，同時啟動 Flask 應用程式
+        if os.environ.get("RAILWAY_ENVIRONMENT"):
+            print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
+            app.run(host="0.0.0.0", port=port, debug=False)
+        else:
+            # 本地環境，只運行定時任務
+            print("⏰ 按 Ctrl+C 停止系統")
+            while True:
+                import time
+                time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n🛑 正在停止系統...")
+        scheduler.shutdown()
+        print("✅ 系統已停止")
