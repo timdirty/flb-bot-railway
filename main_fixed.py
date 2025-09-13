@@ -143,31 +143,6 @@ def upload_weekly_calendar_to_sheet():
             'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3RZrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
         }
         
-        # 先測試 API 是否可用
-        print("🔍 測試 Google Apps Script API 連線...")
-        test_payload = json.dumps({"action": "test"})
-        try:
-            test_response = requests.post(url, headers=headers, data=test_payload, timeout=10)
-            if test_response.status_code == 404:
-                print("❌ Google Apps Script API 不可用 (404 錯誤)")
-                print("💡 請檢查 API URL 是否正確或 Google Apps Script 是否已部署")
-                
-                # 發送管理員通知
-                admin_message = f"⚠️ Google Sheet 上傳功能暫時不可用\n\n"
-                admin_message += f"❌ 錯誤: API 端點回傳 404 錯誤\n"
-                admin_message += f"🔗 API URL: {url}\n"
-                admin_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
-                admin_message += f"💡 請檢查 Google Apps Script 是否已正確部署"
-                send_admin_notification(admin_message, "system_alerts")
-                return
-        except Exception as e:
-            print(f"❌ API 連線測試失敗: {e}")
-            admin_message = f"⚠️ Google Sheet 上傳功能連線失敗\n\n"
-            admin_message += f"❌ 錯誤: {str(e)}\n"
-            admin_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
-            send_admin_notification(admin_message, "system_alerts")
-            return
-        
         # 計算當週的開始和結束日期
         now = datetime.now(tz)
         # 找到本週一
@@ -179,13 +154,24 @@ def upload_weekly_calendar_to_sheet():
         
         print(f"📅 上傳當週行事曆: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}")
         
-        # 連接到 CalDAV
-        client = DAVClient(url, username=username, password=password)
-        principal = client.principal()
-        calendars = principal.calendars()
+        # 嘗試連接到 CalDAV
+        try:
+            client = DAVClient(caldav_url, username=username, password=password)
+            principal = client.principal()
+            calendars = principal.calendars()
+        except Exception as e:
+            print(f"❌ CalDAV 連線失敗: {e}")
+            # 發送錯誤通知
+            error_message = f"❌ 上傳當週行事曆失敗\n\n"
+            error_message += f"❌ 錯誤: CalDAV 連線失敗 - {str(e)}\n"
+            error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+            error_message += f"💡 請檢查 CalDAV 設定或網路連線"
+            send_admin_notification(error_message, "error_notifications")
+            return
         
+        from teacher_data_manager import get_teacher_manager
         teacher_manager = get_teacher_manager()
-        uploaded_count = 0
+        calendar_items = []  # 收集所有行事曆項目
         
         for calendar in calendars:
             try:
@@ -292,14 +278,10 @@ def upload_weekly_calendar_to_sheet():
                                             elif '地址' in note or '地點' in note:
                                                 note2 = note.strip()
                                     
-                                    # 格式化時間
+                                    # 格式化時間為 HHMM-HHMM 格式
                                     time_str = start_dt.strftime('%H%M')
                                     if end_dt:
                                         time_str += f"-{end_dt.strftime('%H%M')}"
-                                    
-                                    # 添加地點資訊
-                                    if location and location != 'nan' and location.strip():
-                                        time_str += f" {location}"
                                     
                                     # 確定時段
                                     hour = start_dt.hour
@@ -314,30 +296,64 @@ def upload_weekly_calendar_to_sheet():
                                     week_days = ['一', '二', '三', '四', '五', '六', '日']
                                     week_day = week_days[start_dt.weekday()]
                                     
-                                    # 準備 API 資料
-                                    payload = json.dumps({
-                                        "action": "addOrUpdateScheduleLink",
+                                    # 整理時間格式：週次 + 空格 + 時間 + 地址
+                                    formatted_time = f"{week_day} {time_str}"
+                                    
+                                    # 整理課別格式，其餘部分放到備注2
+                                    # 從 summary 中提取課程類型（如 SPM, ESM, SPIKE 等）
+                                    course_type = "未知課程"
+                                    remaining_summary = summary
+                                    
+                                    # 提取課程類型（大寫字母組合）
+                                    course_match = re.search(r'([A-Z]+)', summary)
+                                    if course_match:
+                                        course_type = course_match.group(1)
+                                        # 移除已提取的課程類型，其餘部分放到備注2
+                                        remaining_summary = summary.replace(course_type, '').strip()
+                                    
+                                    # 從剩餘內容中提取地點資訊（到府、外、松山等）
+                                    location_from_title = ""
+                                    if remaining_summary:
+                                        # 尋找地點關鍵字
+                                        location_patterns = [r'到府', r'外', r'松山', r'站前', r'線上']
+                                        for pattern in location_patterns:
+                                            match = re.search(pattern, remaining_summary)
+                                            if match:
+                                                location_from_title = match.group(0)
+                                                # 從剩餘內容中移除地點資訊
+                                                remaining_summary = remaining_summary.replace(location_from_title, '').strip()
+                                                break
+                                    
+                                    # 將地點資訊加到時間欄位
+                                    if location_from_title:
+                                        formatted_time += f" {location_from_title}"
+                                    
+                                    # 將詳細地址放到備注1
+                                    if location and location != 'nan' and location.strip():
+                                        if note1:
+                                            note1 = f"{note1} | {location.strip()}"
+                                        else:
+                                            note1 = location.strip()
+                                    
+                                    # 將剩餘的 summary 內容加到備注2
+                                    if remaining_summary and remaining_summary != course_type:
+                                        if note2:
+                                            note2 = f"{note2} | {remaining_summary}"
+                                        else:
+                                            note2 = remaining_summary
+                                    
+                                    # 收集行事曆項目
+                                    calendar_items.append({
                                         "week": week_day,
                                         "period": period,
-                                        "time": time_str,
+                                        "time": formatted_time,
                                         "course": course_type,
                                         "note1": note1,
                                         "note2": note2,
                                         "teacher": teacher_name
                                     })
                                     
-                                    # 發送到 Google Sheet
-                                    response = requests.request("POST", url, headers=headers, data=payload)
-                                    
-                                    if response.status_code == 200:
-                                        result = response.json()
-                                        if result.get('success'):
-                                            uploaded_count += 1
-                                            print(f"✅ 已上傳: {summary} ({week_day} {period} {time_str}) - {teacher_name}")
-                                        else:
-                                            print(f"❌ 上傳失敗: {summary} - {result.get('message', '未知錯誤')}")
-                                    else:
-                                        print(f"❌ API 請求失敗: {response.status_code} - {summary}")
+                                    print(f"📝 準備上傳: {summary} ({week_day} {period} {time_str}) - {teacher_name}")
                                         
                                 except Exception as e:
                                     print(f"❌ 處理事件失敗: {summary} - {e}")
@@ -349,14 +365,62 @@ def upload_weekly_calendar_to_sheet():
                 print(f"❌ 讀取行事曆 {calendar.name} 失敗: {e}")
                 continue
         
-        print(f"📊 當週行事曆上傳完成，共上傳 {uploaded_count} 個事件")
-        
-        # 發送管理員通知
-        admin_message = f"📊 當週行事曆上傳完成\n\n"
-        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
-        admin_message += f"📈 上傳事件數: {uploaded_count}\n"
-        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        send_admin_notification(admin_message, "system")
+        # 使用批量新增 API 上傳所有項目
+        if calendar_items:
+            print(f"📤 使用批量新增 API 上傳 {len(calendar_items)} 個行事曆項目...")
+            
+            payload = json.dumps({
+                "action": "addOrUpdateSchedulesLinkBulk",
+                "items": calendar_items
+            })
+            
+            try:
+                response = requests.request("POST", url, headers=headers, data=payload, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('success'):
+                        uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
+                        print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
+                        
+                        # 發送成功通知
+                        admin_message = f"📊 當週行事曆上傳完成\n\n"
+                        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+                        admin_message += f"📈 總項目數: {len(calendar_items)}\n"
+                        admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
+                        admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
+                        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        send_admin_notification(admin_message, "system")
+                    else:
+                        print(f"❌ 批量上傳失敗: {result.get('message', '未知錯誤')}")
+                        # 發送失敗通知
+                        error_message = f"❌ 批量上傳失敗\n\n"
+                        error_message += f"❌ 錯誤: {result.get('message', '未知錯誤')}\n"
+                        error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        send_admin_notification(error_message, "error_notifications")
+                else:
+                    print(f"❌ API 請求失敗: {response.status_code}")
+                    # 發送失敗通知
+                    error_message = f"❌ API 請求失敗\n\n"
+                    error_message += f"❌ 狀態碼: {response.status_code}\n"
+                    error_message += f"📄 回應: {response.text[:200]}...\n"
+                    error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    send_admin_notification(error_message, "error_notifications")
+            except Exception as e:
+                print(f"❌ 批量上傳請求失敗: {e}")
+                # 發送失敗通知
+                error_message = f"❌ 批量上傳請求失敗\n\n"
+                error_message += f"❌ 錯誤: {str(e)}\n"
+                error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                send_admin_notification(error_message, "error_notifications")
+        else:
+            print("📭 沒有找到任何行事曆項目")
+            # 發送無項目通知
+            admin_message = f"📭 當週行事曆檢查完成\n\n"
+            admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+            admin_message += f"📈 找到項目數: 0\n"
+            admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            send_admin_notification(admin_message, "system")
         
     except Exception as e:
         print(f"❌ 上傳當週行事曆失敗: {e}")
@@ -372,7 +436,7 @@ configuration = load_admin_config()
 admins = configuration.get("admins", [])
 
 # 環境變數設定
-url = os.environ.get("CALDAV_URL", "https://funlearnbar.synology.me:9102/caldav/")
+caldav_url = os.environ.get("CALDAV_URL", "https://funlearnbar.synology.me:9102/caldav/")
 username = os.environ.get("CALDAV_USERNAME", "testacount")
 password = os.environ.get("CALDAV_PASSWORD", "testacount")
 access_token = os.environ.get("LINE_ACCESS_TOKEN", "LaeRrV+/XZ6oCJ2ZFzAFlZXHX822l50NxxM2x6vBkuoux4ptr6KjFJcIXL6pNJel2dKbZ7nxachvxvKrKaMNchMqGTywUl4KMGXhxd/bdiDM7M6Ad8OiXF+VzfhlSMXfu1MbDfxdwe0z/NLYHzadyQdB04t89/1O/w1cDnyilFU=")
@@ -568,7 +632,7 @@ def check_upcoming_courses():
     print(f"📋 當前模式: {mode_text}")
     
     try:
-        client = DAVClient(url, username=username, password=password)
+        client = DAVClient(caldav_url, username=username, password=password)
         principal = client.principal()
         calendars = principal.calendars()
         
