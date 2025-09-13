@@ -283,13 +283,6 @@ def upload_weekly_calendar_to_sheet():
                                     if end_dt:
                                         time_str += f"-{end_dt.strftime('%H%M')}"
                                     
-                                    # 將地點資訊移到備注1
-                                    if location and location != 'nan' and location.strip():
-                                        if note1:
-                                            note1 = f"{note1} | {location.strip()}"
-                                        else:
-                                            note1 = location.strip()
-                                    
                                     # 確定時段
                                     hour = start_dt.hour
                                     if hour < 12:
@@ -303,8 +296,12 @@ def upload_weekly_calendar_to_sheet():
                                     week_days = ['一', '二', '三', '四', '五', '六', '日']
                                     week_day = week_days[start_dt.weekday()]
                                     
-                                    # 整理時間格式：週次 + 空格 + 時間
+                                    # 整理時間格式：週次 + 空格 + 時間 + 地點
                                     formatted_time = f"{week_day} {time_str}"
+                                    
+                                    # 將地點資訊加到時間欄位
+                                    if location and location != 'nan' and location.strip():
+                                        formatted_time += f" {location.strip()}"
                                     
                                     # 整理課別格式，其餘部分放到備注2
                                     # 從 summary 中提取課程類型（如 SPM, ESM, SPIKE 等）
