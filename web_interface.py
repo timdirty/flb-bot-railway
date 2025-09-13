@@ -1356,12 +1356,13 @@ def api_get_next_check_time():
         tz = pytz.timezone('Asia/Taipei')
         now = datetime.now(tz)
         
-        # 計算下次檢查時間（每30分鐘檢查一次）
-        next_check = now.replace(second=0, microsecond=0)
-        if now.minute < 30:
-            next_check = next_check.replace(minute=30)
-        else:
-            next_check = next_check.replace(minute=0) + timedelta(hours=1)
+        # 載入系統設定
+        config = load_system_config()
+        check_interval = config.get('scheduler_settings', {}).get('check_interval_minutes', 30)
+        
+        # 計算下次檢查時間（根據系統設定）
+        next_check = now + timedelta(minutes=check_interval)
+        next_check = next_check.replace(second=0, microsecond=0)
         
         # 計算剩餘時間（秒）
         time_diff = next_check - now
@@ -1371,7 +1372,8 @@ def api_get_next_check_time():
             "success": True,
             "next_check_time": next_check.strftime('%H:%M:%S'),
             "remaining_seconds": remaining_seconds,
-            "current_time": now.strftime('%H:%M:%S')
+            "current_time": now.strftime('%H:%M:%S'),
+            "check_interval_minutes": check_interval
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
