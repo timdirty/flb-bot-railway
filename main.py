@@ -1034,6 +1034,7 @@ class TaskManager:
         self.last_calendar_check = None
         self.last_calendar_upload = None
         self.last_teacher_update = None
+        self.last_tomorrow_check = None
         
     def should_check_calendar(self):
         """檢查是否需要檢查行事曆"""
@@ -1060,6 +1061,20 @@ class TaskManager:
         if (not self.last_teacher_update or 
             (now - self.last_teacher_update).seconds >= 15 * 60):  # 每15分鐘
             return True
+        return False
+    
+    def should_check_tomorrow(self):
+        """檢查是否需要檢查隔天課程"""
+        now = datetime.now(tz)
+        # 只在晚上7點後執行，且每天只執行一次
+        if now.hour >= 19:
+            if not self.last_tomorrow_check:
+                return True
+            # 檢查是否已經在今天執行過
+            last_check_date = self.last_tomorrow_check.date()
+            today = now.date()
+            if last_check_date != today:
+                return True
         return False
     
     def execute_tasks(self):
@@ -1097,12 +1112,12 @@ class TaskManager:
             except Exception as e:
                 print(f"❌ 老師資料更新失敗: {e}")
         
-        # 4. 檢查隔天課程（如果是晚上時間）
-        now = datetime.now(tz)
-        if now.hour >= 19:  # 晚上7點後
+        # 4. 檢查隔天課程（每天只執行一次）
+        if self.should_check_tomorrow():
             print("🌙 執行：檢查隔天課程")
             try:
                 check_tomorrow_courses_new()
+                self.last_tomorrow_check = datetime.now(tz)
                 executed_tasks.append("隔天課程檢查")
             except Exception as e:
                 print(f"❌ 隔天課程檢查失敗: {e}")
