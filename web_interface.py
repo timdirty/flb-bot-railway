@@ -1346,6 +1346,52 @@ def api_update_system_config():
     except Exception as e:
         return jsonify({"success": False, "message": f"更新系統設定失敗: {str(e)}"})
 
+@app.route('/api/next_check_time', methods=['GET'])
+def api_get_next_check_time():
+    """獲取下次檢查時間"""
+    try:
+        from datetime import datetime, timedelta
+        import pytz
+        
+        tz = pytz.timezone('Asia/Taipei')
+        now = datetime.now(tz)
+        
+        # 計算下次檢查時間（每30分鐘檢查一次）
+        next_check = now.replace(second=0, microsecond=0)
+        if now.minute < 30:
+            next_check = next_check.replace(minute=30)
+        else:
+            next_check = next_check.replace(minute=0) + timedelta(hours=1)
+        
+        # 計算剩餘時間（秒）
+        time_diff = next_check - now
+        remaining_seconds = int(time_diff.total_seconds())
+        
+        return jsonify({
+            "success": True,
+            "next_check_time": next_check.strftime('%H:%M:%S'),
+            "remaining_seconds": remaining_seconds,
+            "current_time": now.strftime('%H:%M:%S')
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/force_check', methods=['POST'])
+def api_force_check():
+    """強制檢查行事曆"""
+    try:
+        from main_fixed import check_upcoming_courses
+        
+        # 執行強制檢查
+        check_upcoming_courses()
+        
+        return jsonify({
+            "success": True,
+            "message": "強制檢查已完成"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 def start_scheduler():
     """啟動定時任務"""
     try:

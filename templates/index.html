@@ -100,6 +100,24 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-clock"></i> 下次檢查倒數</h6>
+                                    <div class="d-flex align-items-center">
+                                        <span class="fs-4 fw-bold text-primary me-2" id="countdown-timer">--:--</span>
+                                        <small class="text-muted" id="next-check-time">計算中...</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center h-100">
+                                    <button class="btn btn-warning btn-sm" onclick="forceCheck()" id="force-check-btn">
+                                        <i class="fas fa-sync-alt"></i> 強制檢查
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="mt-3">
                             <button class="btn btn-success btn-action" id="start-btn" onclick="startSystem()">
                                 <i class="fas fa-play"></i> 啟動系統
@@ -664,12 +682,98 @@
             // 設定定時更新
             statusInterval = setInterval(refreshStatus, 5000); // 每5秒更新狀態
             timeInterval = setInterval(updateCurrentTime, 1000); // 每秒更新時間
+            countdownInterval = setInterval(updateCountdown, 1000); // 每秒更新倒數計時
+            
+            // 初始化倒數計時
+            updateCountdown();
         });
 
         // 更新當前時間
         function updateCurrentTime() {
             const now = new Date();
             document.getElementById('current-time').textContent = now.toLocaleString('zh-TW');
+        }
+
+        // 更新倒數計時
+        async function updateCountdown() {
+            try {
+                const response = await fetch('/api/next_check_time');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const remainingSeconds = data.remaining_seconds;
+                    const nextCheckTime = data.next_check_time;
+                    
+                    // 更新下次檢查時間
+                    document.getElementById('next-check-time').textContent = `下次檢查: ${nextCheckTime}`;
+                    
+                    // 計算時分秒
+                    const hours = Math.floor(remainingSeconds / 3600);
+                    const minutes = Math.floor((remainingSeconds % 3600) / 60);
+                    const seconds = remainingSeconds % 60;
+                    
+                    // 格式化時間顯示
+                    let timeString = '';
+                    if (hours > 0) {
+                        timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    } else {
+                        timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                    
+                    // 更新倒數計時顯示
+                    const countdownElement = document.getElementById('countdown-timer');
+                    countdownElement.textContent = timeString;
+                    
+                    // 根據剩餘時間改變顏色
+                    if (remainingSeconds <= 60) {
+                        countdownElement.className = 'fs-4 fw-bold text-danger me-2';
+                    } else if (remainingSeconds <= 300) {
+                        countdownElement.className = 'fs-4 fw-bold text-warning me-2';
+                    } else {
+                        countdownElement.className = 'fs-4 fw-bold text-primary me-2';
+                    }
+                }
+            } catch (error) {
+                console.error('更新倒數計時失敗:', error);
+                document.getElementById('countdown-timer').textContent = '--:--';
+                document.getElementById('next-check-time').textContent = '載入失敗';
+            }
+        }
+
+        // 強制檢查行事曆
+        async function forceCheck() {
+            const button = document.getElementById('force-check-btn');
+            const originalText = button.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 檢查中...';
+                
+                const response = await fetch('/api/force_check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('強制檢查已完成', 'success');
+                    // 重新更新倒數計時
+                    updateCountdown();
+                } else {
+                    showNotification('強制檢查失敗: ' + data.error, 'error');
+                }
+            } catch (error) {
+                console.error('強制檢查失敗:', error);
+                showNotification('強制檢查失敗: ' + error.message, 'error');
+            } finally {
+                // 恢復按鈕狀態
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }
         }
 
         // 重新整理系統狀態
