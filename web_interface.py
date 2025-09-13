@@ -92,21 +92,23 @@ def extract_lesson_plan_url(description):
     
     # 尋找教案相關的連結 - 使用更精確的方法
     # 先找到「教案:」的位置，然後提取後面的完整 URL
-    lesson_match = re.search(r'教案[：:]\s*(.*)', description, re.IGNORECASE)
+    lesson_match = re.search(r'教案[：:]\s*(.*)', description, re.IGNORECASE | re.DOTALL)
     if lesson_match:
         # 取得教案後面的所有內容
         after_lesson = lesson_match.group(1).strip()
         
+        # 先清理換行符，將跨行的 URL 合併
+        cleaned_text = after_lesson.replace('\n', '').replace('\\n', '')
+        
         # 從中提取完整的 URL，包括所有參數
-        # 使用更寬鬆的匹配，直到遇到真正的分隔符
-        url_match = re.search(r'(https?://[^\s\n]+(?:\?[^\s\n]*)?)', after_lesson)
+        url_match = re.search(r'(https?://[^\s]+(?:\?[^\s]*)?)', cleaned_text)
         if url_match:
             url = url_match.group(1).strip()
             print(f"✅ 提取到教案連結: {url}")
             return url
     
     # 如果沒有找到教案標籤，嘗試尋找 Notion 連結
-    notion_pattern = r'(https://[^\s\n]*notion[^\s\n]*(?:\?[^\s\n]*)?)'
+    notion_pattern = r'(https://[^\s]*notion[^\s]*(?:\?[^\s]*)?)'
     match = re.search(notion_pattern, description, re.IGNORECASE)
     if match:
         url = match.group(1).strip()
@@ -792,10 +794,14 @@ def api_test_course_reminder():
                                         i += 1
                                         # 繼續讀取後續行，直到遇到新的欄位或空行
                                         while i < len(lines):
-                                            next_line = lines[i].strip()
-                                            # 只在新行開始時才檢查是否為新欄位
-                                            if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
-                                                description += '\n' + next_line
+                                            next_line = lines[i]
+                                            # 檢查是否為新欄位（不 strip，保持原始格式）
+                                            if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
+                                                # 如果是縮排行（以空格開頭），直接拼接
+                                                if next_line.startswith(' '):
+                                                    description += next_line[1:]  # 移除開頭的空白
+                                                else:
+                                                    description += '\n' + next_line.strip()
                                                 i += 1
                                             else:
                                                 break

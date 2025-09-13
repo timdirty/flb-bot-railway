@@ -19,7 +19,7 @@ from linebot.v3.messaging.models import MessageAction
 app = Flask(__name__)
 import pygsheets
 import re
-from teacher_manager import TeacherManager
+from teacher_data_manager import get_teacher_manager, update_teacher_data
 import os
 
 today = datetime.now().date()
@@ -108,7 +108,7 @@ tz = pytz.timezone("Asia/Taipei")
 survey_url = "https://docs.google.com/spreadsheets/d/1o8Q9avYfh3rSVvkJruPJy7drh5dQqhA_-icT33jBX8s/"
 
 # 初始化老師管理器
-teacher_manager = TeacherManager(gc, survey_url)
+teacher_manager = get_teacher_manager()
 
 # Synology CalDAV 設定 - 支援環境變數
 url = os.environ.get("CALDAV_URL", "https://funlearnbar.synology.me:9102/caldav/")
@@ -444,8 +444,8 @@ def morning_summary():
                                 if user_id not in events_by_teacher:
                                     events_by_teacher[user_id] = []
                                 events_by_teacher[user_id].append(
-                                    f"📅 {summary}：{start.strftime('%H:%M')}"
-                                )
+                                f"📅 {summary}：{start.strftime('%H:%M')}"
+                            )
 
         # 發送個人化的今日總覽給每位老師
         for user_id, events_today in events_by_teacher.items():
@@ -456,12 +456,12 @@ def morning_summary():
                 PushMessageRequest(
                             to=user_id, 
                             messages=[TextMessage(text=message)]
-                        )
-                    )
+                )
+            )
                     print(f"✅ 已推播今日總覽給 {user_id}")
                 except Exception as e:
                     print(f"❌ 推播失敗 ({user_id}): {e}")
-            else:
+        else:
                 print(f"ℹ️ {user_id} 今日無課程")
 
         if not events_by_teacher:
@@ -494,7 +494,9 @@ except Exception as e:
 
 # 測試老師資料
 try:
-    teacher_data = teacher_manager.get_teacher_data(force_refresh=True)
+    # 更新講師資料
+    update_teacher_data()
+    teacher_data = teacher_manager.get_teacher_data()
     print(f"✅ 老師資料載入成功 ({len(teacher_data)} 位老師)")
 except Exception as e:
     print(f"❌ 老師資料載入失敗: {e}")
@@ -515,9 +517,13 @@ def start_scheduler():
     scheduler.add_job(check_tomorrow_courses_new, "cron", hour=19, minute=0)
     print("✅ 已設定每日 19:00 隔天課程提醒")
 
-    # 每分鐘檢查 15 分鐘內即將開始的事件
-    scheduler.add_job(check_upcoming_courses, "interval", minutes=1)
-    print("✅ 已設定每分鐘檢查 15 分鐘內課程提醒")
+    # 每30分鐘檢查 15 分鐘內即將開始的事件
+    scheduler.add_job(check_upcoming_courses, "interval", minutes=30)
+    print("✅ 已設定每30分鐘檢查 15 分鐘內課程提醒")
+    
+    # 每30分鐘更新講師資料
+    scheduler.add_job(update_teacher_data, "interval", minutes=30)
+    print("✅ 已設定每30分鐘更新講師資料")
 
     scheduler.start()
     print("🎯 定時任務已啟動！")
@@ -601,10 +607,10 @@ def check_tomorrow_courses_new():
                                     # 繼續讀取後續行，直到遇到新的欄位或空行
                                     while i < len(lines):
                                         next_line = lines[i].strip()
-                                        if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
+                                        if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
                                             description += '\n' + next_line
                                             i += 1
-                                        else:
+        else:
                                             break
                                     i -= 1  # 回退一行，因為外層循環會自動增加
                                 elif line.startswith('DTSTART'):
@@ -652,9 +658,11 @@ def check_tomorrow_courses_new():
                         
                         # 首先嘗試從描述中解析老師資訊
                         if description:
-                            parsed_info = teacher_manager.parse_calendar_description(description)
-                            if parsed_info.get("teachers"):
-                                raw_teacher_name = parsed_info["teachers"][0]
+                            # 簡單的講師名稱提取（從描述中尋找「師:」後的名稱）
+                            import re
+                            teacher_match = re.search(r'師:\s*([^(]+)', description)
+                            if teacher_match:
+                                raw_teacher_name = teacher_match.group(1).strip()
                                 match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
                                 if match_result:
                                     teacher_name = match_result[0]
@@ -679,8 +687,8 @@ def check_tomorrow_courses_new():
                             "location": location,
                             "url": event_url
                         })
-                        
-                    except Exception as e:
+
+    except Exception as e:
                         print(f"解析事件失敗: {e}")
                         continue
                         
@@ -807,7 +815,7 @@ def check_tomorrow_courses_new():
                         print(f"❌ 發送管理員通知給 {admin.get('admin_name', '未知')} 失敗: {e}")
         else:
             print("📭 隔天沒有課程")
-            
+
     except Exception as e:
         print(f"❌ 檢查隔天課程失敗: {e}")
 
@@ -820,21 +828,23 @@ def extract_lesson_plan_url(description):
     
     # 尋找教案相關的連結 - 使用更精確的方法
     # 先找到「教案:」的位置，然後提取後面的完整 URL
-    lesson_match = re.search(r'教案[：:]\s*(.*)', description, re.IGNORECASE)
+    lesson_match = re.search(r'教案[：:]\s*(.*)', description, re.IGNORECASE | re.DOTALL)
     if lesson_match:
         # 取得教案後面的所有內容
         after_lesson = lesson_match.group(1).strip()
         
+        # 先清理換行符，將跨行的 URL 合併
+        cleaned_text = after_lesson.replace('\n', '').replace('\\n', '')
+        
         # 從中提取完整的 URL，包括所有參數
-        # 使用更寬鬆的匹配，直到遇到真正的分隔符
-        url_match = re.search(r'(https?://[^\s\n]+(?:\?[^\s\n]*)?)', after_lesson)
+        url_match = re.search(r'(https?://[^\s]+(?:\?[^\s]*)?)', cleaned_text)
         if url_match:
             url = url_match.group(1).strip()
             print(f"✅ 提取到教案連結: {url}")
             return url
     
     # 如果沒有找到教案標籤，嘗試尋找 Notion 連結
-    notion_pattern = r'(https://[^\s\n]*notion[^\s\n]*(?:\?[^\s\n]*)?)'
+    notion_pattern = r'(https://[^\s]*notion[^\s]*(?:\?[^\s]*)?)'
     match = re.search(notion_pattern, description, re.IGNORECASE)
     if match:
         url = match.group(1).strip()
@@ -877,9 +887,9 @@ def check_upcoming_courses():
     print(f"🔔 檢查即將開始的課程: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}")
     
     try:
-        client = DAVClient(url, username=username, password=password)
-        principal = client.principal()
-        calendars = principal.calendars()
+    client = DAVClient(url, username=username, password=password)
+    principal = client.principal()
+    calendars = principal.calendars()
         
         upcoming_courses = []
         
@@ -917,9 +927,13 @@ def check_upcoming_courses():
                                     i += 1
                                     # 繼續讀取後續行，直到遇到新的欄位或空行
                                     while i < len(lines):
-                                        next_line = lines[i].strip()
-                                        if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
-                                            description += '\n' + next_line
+                                        next_line = lines[i]
+                                        if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
+                                            # 如果是縮排行（以空格開頭），直接拼接
+                                            if next_line.startswith(' '):
+                                                description += next_line[1:]  # 移除開頭的空白
+                                            else:
+                                                description += '\n' + next_line.strip()
                                             i += 1
                                         else:
                                             break
@@ -974,9 +988,11 @@ def check_upcoming_courses():
                             
                             # 首先嘗試從描述中解析老師資訊
                             if description:
-                                parsed_info = teacher_manager.parse_calendar_description(description)
-                                if parsed_info.get("teachers"):
-                                    raw_teacher_name = parsed_info["teachers"][0]
+                                # 簡單的講師名稱提取（從描述中尋找「師:」後的名稱）
+                                import re
+                                teacher_match = re.search(r'師:\s*([^(]+)', description)
+                                if teacher_match:
+                                    raw_teacher_name = teacher_match.group(1).strip()
                                     match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
                                     if match_result:
                                         teacher_name = match_result[0]
