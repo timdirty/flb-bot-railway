@@ -1017,17 +1017,10 @@ def start_scheduler():
     
     return scheduler
 
-@app.route('/')
-def index():
-    """首頁"""
-    return """
-    <h1>🚄 LINE Bot 課程提醒系統</h1>
-    <p>✅ 系統運行正常</p>
-    <p>📅 定時任務已啟動</p>
-    <p>🌐 Web 管理介面準備就緒</p>
-    <p>⏰ 當前時間: {}</p>
-    """.format(datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S'))
+# 導入 web_interface 的所有路由
+from web_interface import *
 
+# 保留原有的健康檢查路由
 @app.route('/health')
 def health():
     """健康檢查"""
