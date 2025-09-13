@@ -2,7 +2,7 @@
   "cron": {
     "check_courses": {
       "command": "python cron.py",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/1 * * * *"
     }
   }
 }

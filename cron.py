@@ -22,7 +22,8 @@ from main import (
 
 def main():
     """主函數 - 執行定時任務"""
-    print(f"🕐 Cron 服務啟動 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    now = datetime.now(pytz.timezone('Asia/Taipei'))
+    print(f"🕐 Cron 服務啟動 - {now.strftime('%Y-%m-%d %H:%M:%S')}")
     
     # 載入系統設定
     system_config = load_system_config()
@@ -30,18 +31,28 @@ def main():
     
     print(f"⚙️ 系統設定：檢查間隔 {check_interval} 分鐘")
     
+    # 檢查是否需要執行（每分鐘執行，但根據設定決定是否執行任務）
+    # 簡單的檢查：每分鐘都執行，但可以根據需要調整
+    should_execute = True
+    
+    if not should_execute:
+        print("⏭️ 跳過執行（根據系統設定）")
+        return
+    
     # 執行定時任務
     try:
         # 1. 檢查即將開始的課程
         print("🔔 執行：檢查即將開始的課程")
         check_upcoming_courses()
         
-        # 2. 上傳當週行事曆
-        print("📊 執行：上傳當週行事曆")
-        upload_weekly_calendar_to_sheet()
+        # 2. 上傳當週行事曆（每30分鐘執行一次）
+        if now.minute % 30 == 0:
+            print("📊 執行：上傳當週行事曆")
+            upload_weekly_calendar_to_sheet()
+        else:
+            print("⏭️ 跳過：上傳當週行事曆（未到執行時間）")
         
         # 3. 檢查隔天課程（如果是晚上時間）
-        now = datetime.now(pytz.timezone('Asia/Taipei'))
         if now.hour >= 19:  # 晚上7點後
             print("🌙 執行：檢查隔天課程")
             check_tomorrow_courses_new()
