@@ -83,6 +83,63 @@ def save_test_mode_config():
     except Exception as e:
         print(f"❌ 保存測試模式設定失敗: {e}")
 
+def extract_lesson_plan_url(description):
+    """從描述中提取教案連結"""
+    if not description:
+        return ""
+    
+    import re
+    
+    # 尋找教案相關的連結
+    # 匹配格式：教案: https://... 或 教案：https://...
+    lesson_patterns = [
+        r'教案[：:]\s*(https?://[^\s\n]+)',
+        r'教案[：:]\s*(https?://[^\s\n]+?)(?:\s|$|\n)',
+        r'教案[：:]\s*(https?://[^\s\n]+?)(?:\s|$|\n|教案|師|助)',
+    ]
+    
+    for pattern in lesson_patterns:
+        match = re.search(pattern, description, re.IGNORECASE)
+        if match:
+            url = match.group(1).strip()
+            # 確保 URL 完整
+            if url and url.startswith('http'):
+                print(f"✅ 提取到教案連結: {url}")
+                return url
+    
+    # 如果沒有找到教案標籤，嘗試尋找 Notion 連結
+    notion_pattern = r'(https://[^\s\n]*notion[^\s\n]*)'
+    match = re.search(notion_pattern, description, re.IGNORECASE)
+    if match:
+        url = match.group(1).strip()
+        print(f"✅ 提取到 Notion 連結: {url}")
+        return url
+    
+    print(f"⚠️ 未找到教案連結")
+    return ""
+
+def clean_description_content(description):
+    """清理描述內容，只保留重要資訊"""
+    if not description:
+        return ""
+    
+    lines = description.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # 保留重要資訊
+        if any(keyword in line for keyword in ['時間:', '班級:', '師:', '助教:', '教案:']):
+            cleaned_lines.append(line)
+        # 保留 URL 連結
+        elif 'http' in line:
+            cleaned_lines.append(line)
+    
+    return '\n'.join(cleaned_lines)
+
 def load_admin_config():
     """載入管理員設定"""
     try:
@@ -816,15 +873,22 @@ def api_test_course_reminder():
                                     teacher_name = match_result[0]
                                     teacher_user_id = match_result[1]
                             
+                            # 提取教案連結
+                            lesson_plan_url = extract_lesson_plan_url(description)
+                            
+                            # 清理描述內容
+                            cleaned_description = clean_description_content(description)
+                            
                             upcoming_events.append({
                                 "summary": summary,
                                 "teacher": teacher_name,
                                 "start_time": time_str,
                                 "time_until": time_until,
                                 "calendar": calendar.name,
-                                "description": description,
+                                "description": cleaned_description,
                                 "location": location,
-                                "url": event_url
+                                "url": event_url,
+                                "lesson_plan_url": lesson_plan_url
                             })
                             
                         except Exception as e:
@@ -852,9 +916,10 @@ def api_test_course_reminder():
                 if upcoming_event.get('location') and upcoming_event['location'] != 'nan' and upcoming_event['location'].strip():
                     reminder_message += f"📍 地點: {upcoming_event['location']}\n"
                 
-                # 顯示教案連結（如果有）
-                if upcoming_event.get('url') and upcoming_event['url'].strip():
-                    reminder_message += f"🔗 教案連結: {upcoming_event['url']}\n"
+                # 顯示教案連結（優先使用提取的教案連結）
+                lesson_url = upcoming_event.get('lesson_plan_url') or upcoming_event.get('url')
+                if lesson_url and lesson_url.strip():
+                    reminder_message += f"🔗 教案連結: {lesson_url}\n"
                 
                 # 顯示行事曆備註中的原始內容
                 if upcoming_event.get('description') and upcoming_event['description'].strip():
