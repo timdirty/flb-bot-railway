@@ -232,18 +232,18 @@ def check_tomorrow_courses():
     calendars = principal.calendars()
 
     try:
-        for calendar in calendars:
-            events = calendar.events()
+    for calendar in calendars:
+        events = calendar.events()
             print(f"📅 檢查行事曆: {calendar.name}")
 
-            for event in events:
-                cal = Calendar.from_ical(event.data)
-                for component in cal.walk():
-                    if component.name == "VEVENT":
-                        summary = component.get("summary")
-                        start = component.get("dtstart").dt
-                        describe = component.get("description")
-                        location = component.get("location")
+        for event in events:
+            cal = Calendar.from_ical(event.data)
+            for component in cal.walk():
+                if component.name == "VEVENT":
+                    summary = component.get("summary")
+                    start = component.get("dtstart").dt
+                    describe = component.get("description")
+                    location = component.get("location")
                         
                         # 使用新的老師管理器解析描述
                         parsed_info = teacher_manager.parse_calendar_description(describe)
@@ -275,9 +275,9 @@ def check_tomorrow_courses():
 
                         # 日期轉格式
                         try:
-                            formatted_date = datetime.strptime(date_raw, "%Y%m%d").strftime(
-                                "%Y/%m/%d"
-                            )
+                        formatted_date = datetime.strptime(date_raw, "%Y%m%d").strftime(
+                            "%Y/%m/%d"
+                        )
                         except ValueError:
                             print("⚠️ 無法解析時間格式")
                             continue
@@ -285,7 +285,7 @@ def check_tomorrow_courses():
                         # 檢查時間是否在 30 分鐘內
                         if isinstance(start, datetime):
                             time_diff = (start - now).total_seconds() / 60
-                        else:
+                    else:
                             # 如果 start 是 date，補上時間
                             start = datetime.combine(
                                 start, datetime.min.time()
@@ -348,7 +348,7 @@ def check_tomorrow_courses():
                     map_msg = FlexMessage(altText="上課地點", contents=flex_content)
                             
                     # 建立快速回覆按鈕
-                    quick_reply = QuickReply(
+                            quick_reply = QuickReply(
                                 items=[
                                     QuickReplyItem(
                                         action=MessageAction(
@@ -934,67 +934,10 @@ def check_upcoming_courses():
         if upcoming_courses:
             print(f"🔔 找到 {len(upcoming_courses)} 個即將開始的課程")
             
-            # 按老師分組課程
-            teacher_courses = {}
-            admin_courses = []
+            # 所有課程都發送給管理員（不發送給個別老師）
+            admin_courses = upcoming_courses
             
-            for course in upcoming_courses:
-                if course['teacher_user_id']:
-                    # 有找到老師的 User ID，發送給該老師
-                    if course['teacher_user_id'] not in teacher_courses:
-                        teacher_courses[course['teacher_user_id']] = {
-                            'teacher_name': course['teacher'],
-                            'courses': []
-                        }
-                    teacher_courses[course['teacher_user_id']]['courses'].append(course)
-                else:
-                    # 沒找到老師的 User ID，加入管理員通知列表
-                    admin_courses.append(course)
-            
-            # 發送個別老師的課程提醒
-            for teacher_user_id, teacher_data in teacher_courses.items():
-                for course in teacher_data['courses']:
-                    try:
-                        message = f"🔔 課程即將開始！\n\n"
-                        message += f"📚 課程: {course['summary']}\n"
-                        message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
-                        message += f"👨‍🏫 老師: {course['teacher']}\n"
-                        message += f"📅 行事曆: {course['calendar']}\n"
-                        
-                        # 顯示地點資訊
-                        if course.get('location') and course['location'] != 'nan' and course['location'].strip():
-                            message += f"📍 地點: {course['location']}\n"
-                        
-                        # 顯示教案連結
-                        if course.get('url') and course['url'].strip():
-                            message += f"🔗 教案連結: {course['url']}\n"
-                        
-                        # 顯示行事曆備註中的原始內容
-                        if course.get('description') and course['description'].strip():
-                            message += f"📝 課程附註:\n"
-                            # 直接顯示原始附註內容，不做過多處理
-                            description_text = course['description'].strip()
-                            # 只做基本的換行處理，保持原始格式
-                            description_lines = description_text.split('\n')
-                            for line in description_lines:
-                                line = line.strip()
-                                if line:  # 只過濾空行
-                                    message += f"   {line}\n"
-                        
-                        message += "\n"
-                        message += "📝 簽到連結: https://liff.line.me/1657746214-wPgd2qQn"
-                        
-                        messaging_api.push_message(
-                            PushMessageRequest(
-                                to=teacher_user_id,
-                                messages=[TextMessage(text=message)]
-                            )
-                        )
-                        print(f"✅ 已發送課程提醒給 {teacher_data['teacher_name']} ({teacher_user_id})")
-                    except Exception as e:
-                        print(f"❌ 發送課程提醒給 {teacher_data['teacher_name']} 失敗: {e}")
-            
-            # 發送管理員通知（包含未找到老師的課程）
+            # 發送管理員通知（包含所有課程）
             if admin_courses:
                 admin_config = load_admin_config()
                 admins = admin_config.get("admins", [])
