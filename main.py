@@ -809,8 +809,24 @@ def check_tomorrow_courses_new():
                         )
                     )
                     print(f"✅ 已發送隔天課程提醒給 {teacher_data['teacher_name']} ({teacher_user_id})")
+                    
+                    # 發送管理員通知：已發送隔天課程提醒
+                    admin_message = f"📤 已發送隔天課程提醒給講師\n\n"
+                    admin_message += f"📚 課程: {course['summary']}\n"
+                    admin_message += f"⏰ 時間: {course['time']}\n"
+                    admin_message += f"👨‍🏫 講師: {teacher_data['teacher_name']}\n"
+                    admin_message += f"📅 行事曆: {course['calendar']}\n"
+                    send_admin_notification(admin_message, "course_reminders")
+                    
                 except Exception as e:
                     print(f"❌ 發送隔天課程提醒給 {teacher_data['teacher_name']} 失敗: {e}")
+                    
+                    # 發送管理員錯誤通知
+                    error_message = f"❌ 發送隔天課程提醒失敗\n\n"
+                    error_message += f"📚 課程: {course['summary']}\n"
+                    error_message += f"👨‍🏫 講師: {teacher_data['teacher_name']}\n"
+                    error_message += f"❌ 錯誤: {str(e)}\n"
+                    send_admin_notification(error_message, "error_notifications")
             
             # 發送管理員通知（包含未找到老師的課程）
             if admin_courses:
@@ -1170,8 +1186,24 @@ def check_upcoming_courses():
                                 )
                             )
                             print(f"✅ 已發送課程提醒給 {teacher_data['teacher_name']} ({teacher_user_id})")
+                            
+                            # 發送管理員通知：已發送講師提醒
+                            admin_message = f"📤 已發送課程提醒給講師\n\n"
+                            admin_message += f"📚 課程: {course['summary']}\n"
+                            admin_message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                            admin_message += f"👨‍🏫 講師: {teacher_data['teacher_name']}\n"
+                            admin_message += f"📅 行事曆: {course['calendar']}\n"
+                            send_admin_notification(admin_message, "course_reminders")
+                            
                         except Exception as e:
                             print(f"❌ 發送課程提醒給 {teacher_data['teacher_name']} 失敗: {e}")
+                            
+                            # 發送管理員錯誤通知
+                            error_message = f"❌ 發送課程提醒失敗\n\n"
+                            error_message += f"📚 課程: {course['summary']}\n"
+                            error_message += f"👨‍🏫 講師: {teacher_data['teacher_name']}\n"
+                            error_message += f"❌ 錯誤: {str(e)}\n"
+                            send_admin_notification(error_message, "error_notifications")
             
             # 發送管理員通知（包含所有課程或未找到老師的課程）
             all_admin_courses = admin_courses if test_mode else admin_courses
