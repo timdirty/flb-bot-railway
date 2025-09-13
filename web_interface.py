@@ -690,6 +690,8 @@ def api_test_course_reminder():
                                 summary = '無標題'
                                 description = ''
                                 start_time = ''
+                                location = ''
+                                event_url = ''
                                 
                                 # 從 iCalendar 字符串中提取資訊
                                 lines = event_data.split('\n')
@@ -703,11 +705,17 @@ def api_test_course_reminder():
                                         start_match = re.search(r'DTSTART[^:]*:(.+)', line)
                                         if start_match:
                                             start_time = start_match.group(1).strip()
+                                    elif line.startswith('LOCATION:'):
+                                        location = line[9:].strip()
+                                    elif line.startswith('URL:'):
+                                        event_url = line[4:].strip()
                             else:
                                 # 如果是字典，使用原來的解析方式
                                 summary = event_data.get('summary', '無標題')
                                 description = event_data.get('description', '')
                                 start_time = event_data.get('dtstart', {}).get('dt', '') if isinstance(event_data.get('dtstart'), dict) else event_data.get('dtstart', '')
+                                location = event_data.get('location', '')
+                                event_url = event_data.get('url', '')
                             
                             # 解析時間
                             if start_time:
@@ -770,7 +778,9 @@ def api_test_course_reminder():
                                 "start_time": time_str,
                                 "time_until": time_until,
                                 "calendar": calendar.name,
-                                "description": description
+                                "description": description,
+                                "location": location,
+                                "url": event_url
                             })
                             
                         except Exception as e:
@@ -792,7 +802,29 @@ def api_test_course_reminder():
                 reminder_message += f"課程: {upcoming_event['summary']}\n"
                 reminder_message += f"時間: {upcoming_event['start_time']} ({upcoming_event['time_until']})\n"
                 reminder_message += f"老師: {upcoming_event['teacher']}\n"
-                reminder_message += f"行事曆: {upcoming_event['calendar']}\n\n"
+                reminder_message += f"行事曆: {upcoming_event['calendar']}\n"
+                
+                # 顯示地點資訊（如果有）
+                if upcoming_event.get('location') and upcoming_event['location'] != 'nan' and upcoming_event['location'].strip():
+                    reminder_message += f"📍 地點: {upcoming_event['location']}\n"
+                
+                # 顯示教案連結（如果有）
+                if upcoming_event.get('url') and upcoming_event['url'].strip():
+                    reminder_message += f"🔗 教案連結: {upcoming_event['url']}\n"
+                
+                # 顯示行事曆備註中的原始內容
+                if upcoming_event.get('description') and upcoming_event['description'].strip():
+                    reminder_message += f"📝 課程附註:\n"
+                    # 直接顯示原始附註內容，不做過多處理
+                    description_text = upcoming_event['description'].strip()
+                    # 只做基本的換行處理，保持原始格式
+                    description_lines = description_text.split('\n')
+                    for line in description_lines:
+                        line = line.strip()
+                        if line:  # 只過濾空行
+                            reminder_message += f"   {line}\n"
+                
+                reminder_message += "\n"
                 reminder_message += f"🔗 簽到連結: https://liff.line.me/1657746214-wPgd2qQn\n\n"
                 reminder_message += f"請準備上課！\n\n"
                 reminder_message += "🧪 這是基於真實行事曆資料的測試通知。"
