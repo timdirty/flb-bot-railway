@@ -601,7 +601,7 @@ def check_tomorrow_courses_new():
                                     # 繼續讀取後續行，直到遇到新的欄位或空行
                                     while i < len(lines):
                                         next_line = lines[i].strip()
-                                        if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'URL:', 'END:')):
+                                        if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
                                             description += '\n' + next_line
                                             i += 1
                                         else:
@@ -918,7 +918,7 @@ def check_upcoming_courses():
                                     # 繼續讀取後續行，直到遇到新的欄位或空行
                                     while i < len(lines):
                                         next_line = lines[i].strip()
-                                        if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'URL:', 'END:')):
+                                        if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
                                             description += '\n' + next_line
                                             i += 1
                                         else:

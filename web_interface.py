@@ -793,7 +793,8 @@ def api_test_course_reminder():
                                         # 繼續讀取後續行，直到遇到新的欄位或空行
                                         while i < len(lines):
                                             next_line = lines[i].strip()
-                                            if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'URL:', 'END:')):
+                                            # 只在新行開始時才檢查是否為新欄位
+                                            if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
                                                 description += '\n' + next_line
                                                 i += 1
                                             else:

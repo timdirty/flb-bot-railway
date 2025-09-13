@@ -285,14 +285,15 @@ def check_upcoming_courses():
                                     # 處理多行描述
                                     description = line[12:].strip()
                                     i += 1
-                                    # 繼續讀取後續行，直到遇到新的欄位或空行
-                                    while i < len(lines):
-                                        next_line = lines[i].strip()
-                                        if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'URL:', 'END:')):
-                                            description += '\n' + next_line
-                                            i += 1
-                                        else:
-                                            break
+                                        # 繼續讀取後續行，直到遇到新的欄位或空行
+                                        while i < len(lines):
+                                            next_line = lines[i].strip()
+                                            # 只在新行開始時才檢查是否為新欄位
+                                            if next_line and not next_line.startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
+                                                description += '\n' + next_line
+                                                i += 1
+                                            else:
+                                                break
                                     i -= 1  # 回退一行，因為外層循環會自動增加
                                 elif line.startswith('DTSTART'):
                                     start_match = re.search(r'DTSTART[^:]*:(.+)', line)
