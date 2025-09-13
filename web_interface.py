@@ -90,22 +90,19 @@ def extract_lesson_plan_url(description):
     
     import re
     
-    # 尋找教案相關的連結
-    # 匹配格式：教案: https://... 或 教案：https://...
-    lesson_patterns = [
-        r'教案[：:]\s*(https?://[^\s\n]+)',
-        r'教案[：:]\s*(https?://[^\s\n]+?)(?:\s|$|\n)',
-        r'教案[：:]\s*(https?://[^\s\n]+?)(?:\s|$|\n|教案|師|助)',
-    ]
-    
-    for pattern in lesson_patterns:
-        match = re.search(pattern, description, re.IGNORECASE)
-        if match:
-            url = match.group(1).strip()
-            # 確保 URL 完整
-            if url and url.startswith('http'):
-                print(f"✅ 提取到教案連結: {url}")
-                return url
+    # 尋找教案相關的連結 - 使用更簡單的方法
+    # 先找到「教案:」的位置，然後提取後面的完整 URL
+    lesson_match = re.search(r'教案[：:]\s*(.*)', description, re.IGNORECASE)
+    if lesson_match:
+        # 取得教案後面的所有內容
+        after_lesson = lesson_match.group(1).strip()
+        
+        # 從中提取第一個完整的 URL
+        url_match = re.search(r'(https?://[^\s\n]+)', after_lesson)
+        if url_match:
+            url = url_match.group(1).strip()
+            print(f"✅ 提取到教案連結: {url}")
+            return url
     
     # 如果沒有找到教案標籤，嘗試尋找 Notion 連結
     notion_pattern = r'(https://[^\s\n]*notion[^\s\n]*)'
