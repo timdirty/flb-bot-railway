@@ -1034,50 +1034,25 @@ def health():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 if __name__ == "__main__":
-    # 啟動定時任務
-    scheduler = start_scheduler()
-    
     # 檢查是否在 Railway 環境中
     port = int(os.environ.get("PORT", 5000))
     
-    try:
-        # 在 Railway 環境中，同時啟動 Flask 應用程式
-        if os.environ.get("RAILWAY_ENVIRONMENT"):
-            print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
-            # 使用 threading 讓定時任務在背景運行
-            import threading
-            def run_flask():
-                app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
-            
-            # 在背景線程中運行 Flask
-            flask_thread = threading.Thread(target=run_flask, daemon=True)
-            flask_thread.start()
-            
-            # 主線程繼續運行定時任務
-            print("⏰ 定時任務在背景運行，按 Ctrl+C 停止系統")
-            print("🔔 定時任務狀態檢查...")
-            
-            # 定期檢查定時任務狀態
-            import time
-            check_count = 0
-            while True:
-                time.sleep(30)  # 每30秒檢查一次
-                check_count += 1
-                print(f"🔍 定時任務狀態檢查 #{check_count} - {datetime.now().strftime('%H:%M:%S')}")
-                
-                # 檢查定時任務是否還在運行
-                if scheduler.running:
-                    print("✅ 定時任務運行正常")
-                else:
-                    print("❌ 定時任務已停止，重新啟動...")
-                    scheduler.start()
-        else:
-            # 本地環境，只運行定時任務
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        # Railway 環境：只運行 Flask 應用程式
+        print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
+        print("📱 定時任務將由 Railway Cron 服務執行")
+        app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+    else:
+        # 本地環境：啟動定時任務和 Flask 應用程式
+        print("🏠 本地環境：啟動定時任務和 Flask 應用程式")
+        scheduler = start_scheduler()
+        
+        try:
             print("⏰ 按 Ctrl+C 停止系統")
             while True:
                 import time
                 time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n🛑 正在停止系統...")
-        scheduler.shutdown()
-        print("✅ 系統已停止")
+        except KeyboardInterrupt:
+            print("\n🛑 正在停止系統...")
+            scheduler.shutdown()
+            print("✅ 系統已停止")
