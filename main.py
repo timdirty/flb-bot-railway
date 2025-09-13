@@ -502,28 +502,78 @@ except Exception as e:
     print(f"❌ 老師資料載入失敗: {e}")
     exit(1)
 
+def load_system_config():
+    """載入系統設定"""
+    try:
+        if os.path.exists("system_config.json"):
+            with open("system_config.json", 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # 預設系統設定
+            default_config = {
+                "scheduler_settings": {
+                    "check_interval_minutes": 30,
+                    "reminder_advance_minutes": 30,
+                    "teacher_update_interval_minutes": 30
+                },
+                "notification_settings": {
+                    "daily_summary_time": "08:00",
+                    "evening_reminder_time": "19:00"
+                }
+            }
+            return default_config
+    except Exception as e:
+        print(f"載入系統設定失敗: {e}")
+        return {
+            "scheduler_settings": {
+                "check_interval_minutes": 30,
+                "reminder_advance_minutes": 30,
+                "teacher_update_interval_minutes": 30
+            },
+            "notification_settings": {
+                "daily_summary_time": "08:00",
+                "evening_reminder_time": "19:00"
+            }
+        }
+
 def start_scheduler():
     """啟動定時任務"""
     print("🚀 啟動老師自動通知系統...")
     
+    # 載入系統設定
+    system_config = load_system_config()
+    scheduler_settings = system_config.get('scheduler_settings', {})
+    notification_settings = system_config.get('notification_settings', {})
+    
+    # 獲取設定值
+    check_interval = scheduler_settings.get('check_interval_minutes', 30)
+    reminder_advance = scheduler_settings.get('reminder_advance_minutes', 30)
+    teacher_update_interval = scheduler_settings.get('teacher_update_interval_minutes', 30)
+    daily_summary_time = notification_settings.get('daily_summary_time', '08:00')
+    evening_reminder_time = notification_settings.get('evening_reminder_time', '19:00')
+    
+    # 解析時間
+    daily_hour, daily_minute = map(int, daily_summary_time.split(':'))
+    evening_hour, evening_minute = map(int, evening_reminder_time.split(':'))
+    
     # 設定定時任務
     scheduler = BackgroundScheduler()
 
-    # 每天早上 8:00 推播今日行事曆總覽
-    scheduler.add_job(morning_summary, "cron", hour=8, minute=0)
-    print("✅ 已設定每日 8:00 課程總覽")
+    # 每天早上推播今日行事曆總覽
+    scheduler.add_job(morning_summary, "cron", hour=daily_hour, minute=daily_minute)
+    print(f"✅ 已設定每日 {daily_summary_time} 課程總覽")
     
-    # 每天晚上 19:00 檢查隔天的課程並發送提醒
-    scheduler.add_job(check_tomorrow_courses_new, "cron", hour=19, minute=0)
-    print("✅ 已設定每日 19:00 隔天課程提醒")
+    # 每天晚上檢查隔天的課程並發送提醒
+    scheduler.add_job(check_tomorrow_courses_new, "cron", hour=evening_hour, minute=evening_minute)
+    print(f"✅ 已設定每日 {evening_reminder_time} 隔天課程提醒")
 
-    # 每30分鐘檢查 30 分鐘內即將開始的事件
-    scheduler.add_job(check_upcoming_courses, "interval", minutes=30)
-    print("✅ 已設定每30分鐘檢查 30 分鐘內課程提醒")
+    # 定期檢查即將開始的事件
+    scheduler.add_job(check_upcoming_courses, "interval", minutes=check_interval)
+    print(f"✅ 已設定每 {check_interval} 分鐘檢查 {reminder_advance} 分鐘內課程提醒")
     
-    # 每30分鐘更新講師資料
-    scheduler.add_job(update_teacher_data, "interval", minutes=30)
-    print("✅ 已設定每30分鐘更新講師資料")
+    # 定期更新講師資料
+    scheduler.add_job(update_teacher_data, "interval", minutes=teacher_update_interval)
+    print(f"✅ 已設定每 {teacher_update_interval} 分鐘更新講師資料")
 
     scheduler.start()
     print("🎯 定時任務已啟動！")
@@ -878,11 +928,15 @@ def clean_description_content(description):
 
 def check_upcoming_courses():
     """
-    每30分鐘檢查 30 分鐘內即將開始的課程並發送提醒
+    檢查即將開始的課程並發送提醒（時間間隔由系統設定決定）
     """
+    # 載入系統設定
+    system_config = load_system_config()
+    reminder_advance = system_config.get('scheduler_settings', {}).get('reminder_advance_minutes', 30)
+    
     now = datetime.now(tz)
     upcoming_start = now
-    upcoming_end = now + timedelta(minutes=30)
+    upcoming_end = now + timedelta(minutes=reminder_advance)
     
     print(f"🔔 檢查即將開始的課程: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}")
     
@@ -980,8 +1034,8 @@ def check_upcoming_courses():
                             time_str = "時間未知"
                             time_diff = 0
                         
-                        # 只處理 30 分鐘內即將開始的課程
-                        if 1 <= time_diff <= 30:
+                        # 只處理設定時間內即將開始的課程
+                        if 1 <= time_diff <= reminder_advance:
                             # 從描述中提取老師資訊並進行模糊比對
                             teacher_name = "未知老師"
                             teacher_user_id = None

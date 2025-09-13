@@ -57,6 +57,7 @@ test_mode_config = {
 # 管理員設定檔案路徑
 ADMIN_CONFIG_FILE = "admin_config.json"
 TEST_MODE_CONFIG_FILE = "test_mode_config.json"
+SYSTEM_CONFIG_FILE = "system_config.json"
 
 def load_test_mode_config():
     """載入測試模式設定"""
@@ -82,6 +83,51 @@ def save_test_mode_config():
         print(f"✅ 已保存測試模式設定: {test_mode_config}")
     except Exception as e:
         print(f"❌ 保存測試模式設定失敗: {e}")
+
+def load_system_config():
+    """載入系統設定"""
+    try:
+        if os.path.exists(SYSTEM_CONFIG_FILE):
+            with open(SYSTEM_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # 預設系統設定
+            default_config = {
+                "scheduler_settings": {
+                    "check_interval_minutes": 30,
+                    "reminder_advance_minutes": 30,
+                    "teacher_update_interval_minutes": 30
+                },
+                "notification_settings": {
+                    "daily_summary_time": "08:00",
+                    "evening_reminder_time": "19:00"
+                }
+            }
+            save_system_config(default_config)
+            return default_config
+    except Exception as e:
+        print(f"載入系統設定失敗: {e}")
+        return {
+            "scheduler_settings": {
+                "check_interval_minutes": 30,
+                "reminder_advance_minutes": 30,
+                "teacher_update_interval_minutes": 30
+            },
+            "notification_settings": {
+                "daily_summary_time": "08:00",
+                "evening_reminder_time": "19:00"
+            }
+        }
+
+def save_system_config(config):
+    """保存系統設定"""
+    try:
+        with open(SYSTEM_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"保存系統設定失敗: {e}")
+        return False
 
 def extract_lesson_plan_url(description):
     """從描述中提取教案連結"""
@@ -752,10 +798,14 @@ def api_test_course_reminder():
             principal = client.principal()
             calendars = principal.calendars()
             
-            # 獲取接下來30分鐘內的事件
+            # 載入系統設定
+            system_config = load_system_config()
+            reminder_advance = system_config.get('scheduler_settings', {}).get('reminder_advance_minutes', 30)
+            
+            # 獲取接下來設定時間內的事件
             tz = pytz.timezone("Asia/Taipei")
             now = datetime.now(tz)
-            next_30_minutes = now + timedelta(minutes=30)
+            next_advance_minutes = now + timedelta(minutes=reminder_advance)
             
             # 讀取所有行事曆的即將到來事件
             upcoming_events = []
@@ -763,7 +813,7 @@ def api_test_course_reminder():
                 try:
                     events = calendar.search(
                         start=now,
-                        end=next_30_minutes,
+                        end=next_advance_minutes,
                         event=True,
                         expand=True
                     )
@@ -840,8 +890,8 @@ def api_test_course_reminder():
                                         hours = int(time_diff.total_seconds() // 3600)
                                         minutes = int((time_diff.total_seconds() % 3600) // 60)
                                         
-                                        # 只處理30分鐘內即將開始的課程
-                                        if minutes <= 30:
+                                        # 只處理設定時間內即將開始的課程
+                                        if minutes <= reminder_advance:
                                             if hours > 0:
                                                 time_until = f"{hours}小時{minutes}分鐘後"
                                             else:
@@ -849,7 +899,7 @@ def api_test_course_reminder():
                                             
                                             time_str = start_dt.strftime('%H:%M')
                                         else:
-                                            continue  # 跳過超過30分鐘的課程
+                                            continue  # 跳過超過設定時間的課程
                                     else:
                                         continue  # 跳過已開始的事件
                                 except:
@@ -953,7 +1003,7 @@ def api_test_course_reminder():
                         reminder_message += f"\n{i}. {event['summary']} ({event['time_until']})"
             else:
                 reminder_message = "📚 課程提醒測試（真實資料）\n\n"
-                reminder_message += "📅 接下來2小時內無任何課程事件\n\n"
+                reminder_message += f"📅 接下來{reminder_advance}分鐘內無任何課程事件\n\n"
                 reminder_message += "🧪 這是基於真實行事曆資料的測試通知。"
                 
         except Exception as e:
@@ -1248,6 +1298,54 @@ def api_logs():
     except Exception as e:
         return jsonify({"success": False, "message": f"獲取日誌失敗: {str(e)}"})
 
+@app.route('/api/system_config')
+def api_system_config():
+    """API: 獲取系統設定"""
+    try:
+        config = load_system_config()
+        return jsonify({"success": True, "data": config})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"獲取系統設定失敗: {str(e)}"})
+
+@app.route('/api/system_config', methods=['POST'])
+def api_update_system_config():
+    """API: 更新系統設定"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"success": False, "message": "無效的請求資料"})
+        
+        # 載入現有設定
+        config = load_system_config()
+        
+        # 更新排程設定
+        if 'scheduler_settings' in data:
+            scheduler_settings = data['scheduler_settings']
+            if 'check_interval_minutes' in scheduler_settings:
+                config['scheduler_settings']['check_interval_minutes'] = int(scheduler_settings['check_interval_minutes'])
+            if 'reminder_advance_minutes' in scheduler_settings:
+                config['scheduler_settings']['reminder_advance_minutes'] = int(scheduler_settings['reminder_advance_minutes'])
+            if 'teacher_update_interval_minutes' in scheduler_settings:
+                config['scheduler_settings']['teacher_update_interval_minutes'] = int(scheduler_settings['teacher_update_interval_minutes'])
+        
+        # 更新通知設定
+        if 'notification_settings' in data:
+            notification_settings = data['notification_settings']
+            if 'daily_summary_time' in notification_settings:
+                config['notification_settings']['daily_summary_time'] = notification_settings['daily_summary_time']
+            if 'evening_reminder_time' in notification_settings:
+                config['notification_settings']['evening_reminder_time'] = notification_settings['evening_reminder_time']
+        
+        # 保存設定
+        if save_system_config(config):
+            return jsonify({"success": True, "message": "系統設定已更新"})
+        else:
+            return jsonify({"success": False, "message": "保存設定失敗"})
+            
+    except Exception as e:
+        return jsonify({"success": False, "message": f"更新系統設定失敗: {str(e)}"})
+
 def start_scheduler():
     """啟動定時任務"""
     try:
@@ -1257,17 +1355,32 @@ def start_scheduler():
         print("🚀 啟動定時任務...")
         scheduler = BackgroundScheduler()
         
-        # 每天早上 8:00 推播今日行事曆總覽
-        scheduler.add_job(morning_summary, "cron", hour=8, minute=0)
-        print("✅ 已設定每日 8:00 課程總覽")
+        # 載入系統設定
+        system_config = load_system_config()
+        scheduler_settings = system_config.get('scheduler_settings', {})
+        notification_settings = system_config.get('notification_settings', {})
         
-        # 每天晚上 19:00 檢查隔天的課程並發送提醒
-        scheduler.add_job(check_tomorrow_courses_new, "cron", hour=19, minute=0)
-        print("✅ 已設定每日 19:00 隔天課程提醒")
+        # 獲取設定值
+        check_interval = scheduler_settings.get('check_interval_minutes', 30)
+        reminder_advance = scheduler_settings.get('reminder_advance_minutes', 30)
+        daily_summary_time = notification_settings.get('daily_summary_time', '08:00')
+        evening_reminder_time = notification_settings.get('evening_reminder_time', '19:00')
         
-        # 每 30 分鐘檢查 15 分鐘內即將開始的事件
-        scheduler.add_job(check_upcoming_courses, "interval", minutes=30)
-        print("✅ 已設定每 30 分鐘檢查 15 分鐘內課程提醒")
+        # 解析時間
+        daily_hour, daily_minute = map(int, daily_summary_time.split(':'))
+        evening_hour, evening_minute = map(int, evening_reminder_time.split(':'))
+        
+        # 每天早上推播今日行事曆總覽
+        scheduler.add_job(morning_summary, "cron", hour=daily_hour, minute=daily_minute)
+        print(f"✅ 已設定每日 {daily_summary_time} 課程總覽")
+        
+        # 每天晚上檢查隔天的課程並發送提醒
+        scheduler.add_job(check_tomorrow_courses_new, "cron", hour=evening_hour, minute=evening_minute)
+        print(f"✅ 已設定每日 {evening_reminder_time} 隔天課程提醒")
+        
+        # 定期檢查即將開始的事件
+        scheduler.add_job(check_upcoming_courses, "interval", minutes=check_interval)
+        print(f"✅ 已設定每 {check_interval} 分鐘檢查 {reminder_advance} 分鐘內課程提醒")
         
         scheduler.start()
         print("🎯 定時任務已啟動！")

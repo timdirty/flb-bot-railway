@@ -1,0 +1,11 @@
+{
+  "scheduler_settings": {
+    "check_interval_minutes": 30,
+    "reminder_advance_minutes": 30,
+    "teacher_update_interval_minutes": 30
+  },
+  "notification_settings": {
+    "daily_summary_time": "08:00",
+    "evening_reminder_time": "19:00"
+  }
+}

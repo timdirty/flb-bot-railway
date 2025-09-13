@@ -172,6 +172,11 @@
                     <i class="fas fa-user-shield"></i> 管理員設定
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="system-settings-tab" data-bs-toggle="tab" data-bs-target="#system-settings" type="button" role="tab">
+                    <i class="fas fa-cog"></i> 系統設定
+                </button>
+            </li>
         </ul>
 
         <div class="tab-content" id="mainTabsContent">
@@ -404,6 +409,93 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 系統設定標籤頁 -->
+            <div class="tab-pane fade" id="system-settings" role="tabpanel">
+                <!-- 排程設定 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-clock"></i> 排程設定
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="check-interval" class="form-label">檢查間隔（分鐘）</label>
+                                    <input type="number" class="form-control" id="check-interval" min="1" max="1440" value="30">
+                                    <div class="form-text">系統每隔多久檢查一次行事曆</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="reminder-advance" class="form-label">提前提醒（分鐘）</label>
+                                    <input type="number" class="form-control" id="reminder-advance" min="1" max="1440" value="30">
+                                    <div class="form-text">課程開始前多久發送提醒</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="teacher-update-interval" class="form-label">講師資料更新間隔（分鐘）</label>
+                                    <input type="number" class="form-control" id="teacher-update-interval" min="1" max="1440" value="30">
+                                    <div class="form-text">每隔多久更新一次講師資料</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 通知時間設定 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-bell"></i> 通知時間設定
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="daily-summary-time" class="form-label">每日摘要時間</label>
+                                    <input type="time" class="form-control" id="daily-summary-time" value="08:00">
+                                    <div class="form-text">每天早上發送課程摘要的時間</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="evening-reminder-time" class="form-label">隔天提醒時間</label>
+                                    <input type="time" class="form-control" id="evening-reminder-time" value="19:00">
+                                    <div class="form-text">每天晚上發送隔天課程提醒的時間</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按鈕 -->
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">系統設定管理</h6>
+                                <p class="text-muted mb-0">修改設定後需要重啟系統才能生效</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary me-2" onclick="loadSystemConfig()">
+                                    <i class="fas fa-sync"></i> 重新載入
+                                </button>
+                                <button class="btn btn-success me-2" onclick="saveSystemConfig()">
+                                    <i class="fas fa-save"></i> 儲存設定
+                                </button>
+                                <button class="btn btn-warning" onclick="resetSystemConfig()">
+                                    <i class="fas fa-undo"></i> 重置為預設
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -566,6 +658,7 @@
             refreshLogs();
             loadAdminConfig(); // 載入管理員設定
             loadTestModeStatus(); // 載入測試模式狀態
+            loadSystemConfig(); // 載入系統設定
             initializeDateFilter(); // 初始化日期篩選器
             
             // 設定定時更新
@@ -1616,6 +1709,95 @@
             } catch (error) {
                 console.error('載入測試模式狀態失敗:', error);
             }
+        }
+
+        // 載入系統設定
+        async function loadSystemConfig() {
+            try {
+                const response = await fetch('/api/system_config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const config = data.data;
+                    const schedulerSettings = config.scheduler_settings || {};
+                    const notificationSettings = config.notification_settings || {};
+                    
+                    // 更新表單欄位
+                    document.getElementById('check-interval').value = schedulerSettings.check_interval_minutes || 30;
+                    document.getElementById('reminder-advance').value = schedulerSettings.reminder_advance_minutes || 30;
+                    document.getElementById('teacher-update-interval').value = schedulerSettings.teacher_update_interval_minutes || 30;
+                    document.getElementById('daily-summary-time').value = notificationSettings.daily_summary_time || '08:00';
+                    document.getElementById('evening-reminder-time').value = notificationSettings.evening_reminder_time || '19:00';
+                    
+                    showNotification('系統設定載入成功', 'success');
+                } else {
+                    showNotification('載入系統設定失敗', 'error');
+                }
+            } catch (error) {
+                console.error('載入系統設定失敗:', error);
+                showNotification('載入系統設定失敗', 'error');
+            }
+        }
+
+        // 儲存系統設定
+        async function saveSystemConfig() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
+                
+                const config = {
+                    scheduler_settings: {
+                        check_interval_minutes: parseInt(document.getElementById('check-interval').value),
+                        reminder_advance_minutes: parseInt(document.getElementById('reminder-advance').value),
+                        teacher_update_interval_minutes: parseInt(document.getElementById('teacher-update-interval').value)
+                    },
+                    notification_settings: {
+                        daily_summary_time: document.getElementById('daily-summary-time').value,
+                        evening_reminder_time: document.getElementById('evening-reminder-time').value
+                    }
+                };
+                
+                const response = await fetch('/api/system_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('系統設定已儲存', 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('儲存系統設定失敗:', error);
+                showNotification('儲存系統設定失敗', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 重置系統設定為預設值
+        function resetSystemConfig() {
+            if (!confirm('確定要重置為預設設定嗎？')) {
+                return;
+            }
+            
+            // 設定預設值
+            document.getElementById('check-interval').value = 30;
+            document.getElementById('reminder-advance').value = 30;
+            document.getElementById('teacher-update-interval').value = 30;
+            document.getElementById('daily-summary-time').value = '08:00';
+            document.getElementById('evening-reminder-time').value = '19:00';
+            
+            showNotification('已重置為預設設定', 'info');
         }
     </script>
 </body>
