@@ -117,7 +117,7 @@ def send_admin_notification(message_text, notification_type="info"):
                     continue
                 
                 if admin_user_id:
-                    messaging_api.push_message(
+        messaging_api.push_message(
                         PushMessageRequest(to=admin_user_id, messages=[TextMessage(text=formatted_message)])
                     )
                     success_count += 1
@@ -289,7 +289,7 @@ def upload_weekly_calendar_to_sheet():
                                         period = "上午"
                                     elif hour < 18:
                                         period = "下午"
-                                    else:
+                else:
                                         period = "晚上"
                                     
                                     # 確定週次
@@ -339,7 +339,7 @@ def upload_weekly_calendar_to_sheet():
                                     if remaining_summary and remaining_summary != course_type:
                                         if note2:
                                             note2 = f"{note2} | {remaining_summary}"
-                                        else:
+                else:
                                             note2 = remaining_summary
                                     
                                     # 收集行事曆項目
@@ -506,7 +506,7 @@ def check_tomorrow_courses_new():
                     print(f"✅ 已發送隔天提醒給 {admin.get('admin_name', '未知')}")
             except Exception as e:
                 print(f"❌ 發送隔天提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
-                
+
     except Exception as e:
         print(f"❌ 檢查隔天課程失敗: {e}")
 
@@ -601,7 +601,7 @@ def check_upcoming_courses():
     # 載入系統設定
     system_config = load_system_config()
     reminder_advance = system_config.get('scheduler_settings', {}).get('reminder_advance_minutes', 30)
-    
+
     now = datetime.now(tz)
     upcoming_start = now
     upcoming_end = now + timedelta(minutes=reminder_advance)
@@ -633,12 +633,12 @@ def check_upcoming_courses():
     
     try:
         client = DAVClient(caldav_url, username=username, password=password)
-        principal = client.principal()
-        calendars = principal.calendars()
+    principal = client.principal()
+    calendars = principal.calendars()
         
         upcoming_courses = []
-        
-        for calendar in calendars:
+
+    for calendar in calendars:
             try:
                 events = calendar.search(
                     start=upcoming_start,
@@ -711,7 +711,7 @@ def check_upcoming_courses():
                             try:
                                 if isinstance(start_time, str):
                                     start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                                else:
+                    else:
                                     start_dt = start_time
                                 
                                 if start_dt.tzinfo is None:
@@ -917,8 +917,8 @@ def check_upcoming_courses():
                             try:
                                 admin_user_id = admin.get("admin_user_id")
                                 if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
-                                    messaging_api.push_message(
-                                        PushMessageRequest(
+            messaging_api.push_message(
+                PushMessageRequest(
                                             to=admin_user_id,
                                             messages=[TextMessage(text=message)]
                                         )
@@ -933,7 +933,7 @@ def check_upcoming_courses():
                         send_admin_error_notification(f"發送課程提醒失敗: {e}")
         else:
             print("📭 沒有即將開始的課程")
-            
+
     except Exception as e:
         print(f"❌ 檢查即將開始的課程失敗: {e}")
 
@@ -993,7 +993,7 @@ def start_scheduler():
     
     # 設定定時任務
     scheduler = BackgroundScheduler()
-    
+
     # 每天早上推播今日行事曆總覽
     scheduler.add_job(morning_summary, "cron", hour=daily_hour, minute=daily_minute)
     print(f"✅ 已設定每日 {daily_summary_time} 課程總覽")
@@ -1009,7 +1009,7 @@ def start_scheduler():
     # 每半小時上傳當週行事曆到 Google Sheet
     scheduler.add_job(upload_weekly_calendar_to_sheet, "interval", minutes=30)
     print("✅ 已設定每 30 分鐘上傳當週行事曆到 Google Sheet")
-    
+
     scheduler.start()
     print("🎯 定時任務已啟動！")
     print("📱 系統將自動發送課程提醒通知")
@@ -1044,7 +1044,20 @@ if __name__ == "__main__":
         # 在 Railway 環境中，同時啟動 Flask 應用程式
         if os.environ.get("RAILWAY_ENVIRONMENT"):
             print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
-            app.run(host="0.0.0.0", port=port, debug=False)
+            # 使用 threading 讓定時任務在背景運行
+            import threading
+            def run_flask():
+                app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+            
+            # 在背景線程中運行 Flask
+            flask_thread = threading.Thread(target=run_flask, daemon=True)
+            flask_thread.start()
+            
+            # 主線程繼續運行定時任務
+            print("⏰ 定時任務在背景運行，按 Ctrl+C 停止系統")
+            while True:
+                import time
+                time.sleep(1)
         else:
             # 本地環境，只運行定時任務
             print("⏰ 按 Ctrl+C 停止系統")
