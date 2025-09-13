@@ -1,8 +1,0 @@
-{
-  "cron": {
-    "check_courses": {
-      "command": "python cron.py",
-      "schedule": "*/1 * * * *"
-    }
-  }
-}

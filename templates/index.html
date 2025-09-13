@@ -686,6 +686,7 @@
             statusInterval = setInterval(refreshStatus, 30000); // 每30秒更新狀態
             timeInterval = setInterval(updateCurrentTime, 1000); // 每秒更新時間
             countdownInterval = setInterval(updateCountdown, 1000); // 每秒更新倒數計時
+            taskInterval = setInterval(checkTasks, 60000); // 每分鐘檢查任務
             
             // 初始化倒數計時
             updateCountdown();
@@ -695,6 +696,22 @@
         function updateCurrentTime() {
             const now = new Date();
             document.getElementById('current-time').textContent = now.toLocaleString('zh-TW');
+        }
+
+        // 檢查並執行任務
+        function checkTasks() {
+            fetch('/api/check_tasks')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('✅ 任務檢查完成:', data.message);
+                    } else {
+                        console.error('❌ 任務檢查失敗:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ 任務檢查錯誤:', error);
+                });
         }
 
         // 更新倒數計時

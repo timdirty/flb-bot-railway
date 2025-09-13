@@ -1026,6 +1026,105 @@ def health():
     """健康檢查"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+# 定時任務管理器
+class TaskManager:
+    """定時任務管理器，類似老師快取更新機制"""
+    
+    def __init__(self):
+        self.last_calendar_check = None
+        self.last_calendar_upload = None
+        self.last_teacher_update = None
+        
+    def should_check_calendar(self):
+        """檢查是否需要檢查行事曆"""
+        system_config = load_system_config()
+        check_interval = system_config.get('scheduler_settings', {}).get('check_interval_minutes', 5)
+        
+        now = datetime.now()
+        if (not self.last_calendar_check or 
+            (now - self.last_calendar_check).seconds >= check_interval * 60):
+            return True
+        return False
+    
+    def should_upload_calendar(self):
+        """檢查是否需要上傳行事曆"""
+        now = datetime.now()
+        if (not self.last_calendar_upload or 
+            (now - self.last_calendar_upload).seconds >= 30 * 60):  # 每30分鐘
+            return True
+        return False
+    
+    def should_update_teachers(self):
+        """檢查是否需要更新老師資料"""
+        now = datetime.now()
+        if (not self.last_teacher_update or 
+            (now - self.last_teacher_update).seconds >= 15 * 60):  # 每15分鐘
+            return True
+        return False
+    
+    def execute_tasks(self):
+        """執行所有需要執行的任務"""
+        executed_tasks = []
+        
+        # 1. 檢查行事曆
+        if self.should_check_calendar():
+            print("🔔 執行：檢查即將開始的課程")
+            try:
+                check_upcoming_courses()
+                self.last_calendar_check = datetime.now()
+                executed_tasks.append("行事曆檢查")
+            except Exception as e:
+                print(f"❌ 行事曆檢查失敗: {e}")
+        
+        # 2. 上傳行事曆
+        if self.should_upload_calendar():
+            print("📊 執行：上傳當週行事曆")
+            try:
+                upload_weekly_calendar_to_sheet()
+                self.last_calendar_upload = datetime.now()
+                executed_tasks.append("行事曆上傳")
+            except Exception as e:
+                print(f"❌ 行事曆上傳失敗: {e}")
+        
+        # 3. 更新老師資料
+        if self.should_update_teachers():
+            print("👥 執行：更新老師資料")
+            try:
+                if teacher_manager:
+                    teacher_manager.get_teacher_data(force_refresh=True)
+                    self.last_teacher_update = datetime.now()
+                    executed_tasks.append("老師資料更新")
+            except Exception as e:
+                print(f"❌ 老師資料更新失敗: {e}")
+        
+        # 4. 檢查隔天課程（如果是晚上時間）
+        now = datetime.now(tz)
+        if now.hour >= 19:  # 晚上7點後
+            print("🌙 執行：檢查隔天課程")
+            try:
+                check_tomorrow_courses_new()
+                executed_tasks.append("隔天課程檢查")
+            except Exception as e:
+                print(f"❌ 隔天課程檢查失敗: {e}")
+        
+        if executed_tasks:
+            print(f"✅ 已執行任務: {', '.join(executed_tasks)}")
+        else:
+            print("⏭️ 所有任務都在冷卻中，跳過執行")
+
+# 全域任務管理器
+task_manager = TaskManager()
+
+# 新增 API 端點來觸發任務檢查
+@app.route('/api/check_tasks')
+def api_check_tasks():
+    """API: 檢查並執行需要執行的任務"""
+    try:
+        task_manager.execute_tasks()
+        return jsonify({"success": True, "message": "任務檢查完成"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"任務檢查失敗: {str(e)}"})
+
 if __name__ == "__main__":
     # 檢查是否在 Railway 環境中
     port = int(os.environ.get("PORT", 5000))
@@ -1033,7 +1132,7 @@ if __name__ == "__main__":
     if os.environ.get("RAILWAY_ENVIRONMENT"):
         # Railway 環境：只運行 Flask 應用程式
         print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
-        print("📱 定時任務將由 Railway Cron 服務執行")
+        print("📱 定時任務將由前端 API 觸發")
         app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
     else:
         # 本地環境：啟動定時任務和 Flask 應用程式
