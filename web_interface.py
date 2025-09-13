@@ -1392,6 +1392,22 @@ def api_force_check():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/upload_weekly_calendar', methods=['POST'])
+def api_upload_weekly_calendar():
+    """手動上傳當週行事曆到 Google Sheet"""
+    try:
+        from main_fixed import upload_weekly_calendar_to_sheet
+        
+        # 執行上傳
+        upload_weekly_calendar_to_sheet()
+        
+        return jsonify({
+            "success": True,
+            "message": "當週行事曆上傳已完成"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 def start_scheduler():
     """啟動定時任務"""
     try:

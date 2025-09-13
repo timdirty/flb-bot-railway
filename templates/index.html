@@ -111,9 +111,12 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="d-flex align-items-center h-100">
+                                <div class="d-flex align-items-center h-100 gap-2">
                                     <button class="btn btn-warning btn-sm" onclick="forceCheck()" id="force-check-btn">
                                         <i class="fas fa-sync-alt"></i> 強制檢查
+                                    </button>
+                                    <button class="btn btn-info btn-sm" onclick="uploadWeeklyCalendar()" id="upload-calendar-btn">
+                                        <i class="fas fa-upload"></i> 上傳行事曆
                                     </button>
                                 </div>
                             </div>
@@ -769,6 +772,40 @@
             } catch (error) {
                 console.error('強制檢查失敗:', error);
                 showNotification('強制檢查失敗: ' + error.message, 'error');
+            } finally {
+                // 恢復按鈕狀態
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }
+        }
+
+        // 上傳當週行事曆到 Google Sheet
+        async function uploadWeeklyCalendar() {
+            const button = document.getElementById('upload-calendar-btn');
+            const originalText = button.innerHTML;
+            
+            try {
+                // 顯示載入狀態
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上傳中...';
+                
+                const response = await fetch('/api/upload_weekly_calendar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('當週行事曆上傳已完成', 'success');
+                } else {
+                    showNotification('上傳失敗: ' + data.error, 'error');
+                }
+            } catch (error) {
+                console.error('上傳行事曆失敗:', error);
+                showNotification('上傳失敗: ' + error.message, 'error');
             } finally {
                 // 恢復按鈕狀態
                 button.disabled = false;

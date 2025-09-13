@@ -217,6 +217,219 @@ def send_admin_notification(message_text, notification_type="info"):
     except Exception as e:
         print(f"發送管理員通知失敗: {str(e)}")
 
+def upload_weekly_calendar_to_sheet():
+    """上傳當週行事曆到 Google Sheet"""
+    try:
+        import requests
+        import json
+        from datetime import datetime, timedelta
+        
+        # Google Apps Script API 設定
+        url = "https://script.google.com/macros/s/AKfycbyDKCdRNc7oulsTOfvb9v2xW242stGb1CkI4TmsrZHfp8JJQU7ZP6dUmi8ty_M1WSxboQ/exec"
+        headers = {
+            'Content-Type': 'application/json',
+            'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3RZrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
+        }
+        
+        # 計算當週的開始和結束日期
+        now = datetime.now(tz)
+        # 找到本週一
+        days_since_monday = now.weekday()
+        week_start = now - timedelta(days=days_since_monday)
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        # 本週日
+        week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+        
+        print(f"📅 上傳當週行事曆: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}")
+        
+        # 連接到 CalDAV
+        client = DAVClient(url, username=username, password=password)
+        principal = client.principal()
+        calendars = principal.calendars()
+        
+        teacher_manager = get_teacher_manager()
+        uploaded_count = 0
+        
+        for calendar in calendars:
+            try:
+                events = calendar.search(
+                    start=week_start,
+                    end=week_end,
+                    event=True,
+                    expand=True
+                )
+                
+                for event in events:
+                    try:
+                        event_data = event.data
+                        if isinstance(event_data, str):
+                            summary = '無標題'
+                            description = ''
+                            start_time = ''
+                            end_time = ''
+                            location = ''
+                            
+                            # 解析 iCalendar 資料
+                            lines = event_data.split('\n')
+                            i = 0
+                            while i < len(lines):
+                                line = lines[i].strip()
+                                if line.startswith('SUMMARY:'):
+                                    summary = line[8:].strip()
+                                elif line.startswith('DESCRIPTION:'):
+                                    description = line[12:].strip()
+                                    i += 1
+                                    while i < len(lines):
+                                        next_line = lines[i]
+                                        if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
+                                            if next_line.startswith(' '):
+                                                description += next_line[1:]
+                                            else:
+                                                description += '\n' + next_line.strip()
+                                            i += 1
+                                        else:
+                                            break
+                                    i -= 1
+                                elif line.startswith('DTSTART'):
+                                    start_match = re.search(r'DTSTART[^:]*:(.+)', line)
+                                    if start_match:
+                                        start_time = start_match.group(1).strip()
+                                elif line.startswith('DTEND'):
+                                    end_match = re.search(r'DTEND[^:]*:(.+)', line)
+                                    if end_match:
+                                        end_time = end_match.group(1).strip()
+                                elif line.startswith('LOCATION:'):
+                                    location = line[9:].strip()
+                                i += 1
+                            
+                            if start_time:
+                                try:
+                                    # 解析開始時間
+                                    if isinstance(start_time, str):
+                                        start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                                    else:
+                                        start_dt = start_time
+                                    
+                                    if start_dt.tzinfo is None:
+                                        start_dt = tz.localize(start_dt)
+                                    
+                                    # 解析結束時間
+                                    end_dt = None
+                                    if end_time:
+                                        if isinstance(end_time, str):
+                                            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                                        else:
+                                            end_dt = end_time
+                                        
+                                        if end_dt.tzinfo is None:
+                                            end_dt = tz.localize(end_dt)
+                                    
+                                    # 從描述中提取講師資訊
+                                    teacher_name = "未知老師"
+                                    if description:
+                                        teacher_match = re.search(r'師:\s*([^(]+)', description)
+                                        if teacher_match:
+                                            raw_teacher_name = teacher_match.group(1).strip()
+                                            match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
+                                            if match_result:
+                                                teacher_name = match_result[0]
+                                            else:
+                                                teacher_name = raw_teacher_name
+                                    
+                                    # 解析課程資訊
+                                    course_type = "未知課程"
+                                    note1 = ""
+                                    note2 = ""
+                                    
+                                    if description:
+                                        # 提取課程類型
+                                        course_match = re.search(r'班級:\s*([^\\s]+)', description)
+                                        if course_match:
+                                            course_type = course_match.group(1).strip()
+                                        
+                                        # 提取備註
+                                        notes = description.split('\n')
+                                        for note in notes:
+                                            if '改期' in note or '延期' in note:
+                                                note1 = note.strip()
+                                            elif '地址' in note or '地點' in note:
+                                                note2 = note.strip()
+                                    
+                                    # 格式化時間
+                                    time_str = start_dt.strftime('%H%M')
+                                    if end_dt:
+                                        time_str += f"-{end_dt.strftime('%H%M')}"
+                                    
+                                    # 添加地點資訊
+                                    if location and location != 'nan' and location.strip():
+                                        time_str += f" {location}"
+                                    
+                                    # 確定時段
+                                    hour = start_dt.hour
+                                    if hour < 12:
+                                        period = "上午"
+                                    elif hour < 18:
+                                        period = "下午"
+                                    else:
+                                        period = "晚上"
+                                    
+                                    # 確定週次
+                                    week_days = ['一', '二', '三', '四', '五', '六', '日']
+                                    week_day = week_days[start_dt.weekday()]
+                                    
+                                    # 準備 API 資料
+                                    payload = json.dumps({
+                                        "action": "addOrUpdateScheduleLink",
+                                        "week": week_day,
+                                        "period": period,
+                                        "time": time_str,
+                                        "course": course_type,
+                                        "note1": note1,
+                                        "note2": note2,
+                                        "teacher": teacher_name
+                                    })
+                                    
+                                    # 發送到 Google Sheet
+                                    response = requests.request("POST", url, headers=headers, data=payload)
+                                    
+                                    if response.status_code == 200:
+                                        result = response.json()
+                                        if result.get('success'):
+                                            uploaded_count += 1
+                                            print(f"✅ 已上傳: {summary} ({week_day} {period} {time_str}) - {teacher_name}")
+                                        else:
+                                            print(f"❌ 上傳失敗: {summary} - {result.get('message', '未知錯誤')}")
+                                    else:
+                                        print(f"❌ API 請求失敗: {response.status_code} - {summary}")
+                                        
+                                except Exception as e:
+                                    print(f"❌ 處理事件失敗: {summary} - {e}")
+                                    continue
+                    except Exception as e:
+                        print(f"❌ 解析事件失敗: {e}")
+                        continue
+            except Exception as e:
+                print(f"❌ 讀取行事曆 {calendar.name} 失敗: {e}")
+                continue
+        
+        print(f"📊 當週行事曆上傳完成，共上傳 {uploaded_count} 個事件")
+        
+        # 發送管理員通知
+        admin_message = f"📊 當週行事曆上傳完成\n\n"
+        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+        admin_message += f"📈 上傳事件數: {uploaded_count}\n"
+        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        send_admin_notification(admin_message, "system")
+        
+    except Exception as e:
+        print(f"❌ 上傳當週行事曆失敗: {e}")
+        
+        # 發送錯誤通知
+        error_message = f"❌ 上傳當週行事曆失敗\n\n"
+        error_message += f"❌ 錯誤: {str(e)}\n"
+        error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        send_admin_notification(error_message, "error_notifications")
+
 
 # 移除 webhook 功能，只保留定時任務
 
@@ -574,10 +787,15 @@ def start_scheduler():
     # 定期更新講師資料
     scheduler.add_job(update_teacher_data, "interval", minutes=teacher_update_interval)
     print(f"✅ 已設定每 {teacher_update_interval} 分鐘更新講師資料")
+    
+    # 每半小時上傳當週行事曆到 Google Sheet
+    scheduler.add_job(upload_weekly_calendar_to_sheet, "interval", minutes=30)
+    print("✅ 已設定每 30 分鐘上傳當週行事曆到 Google Sheet")
 
     scheduler.start()
     print("🎯 定時任務已啟動！")
     print("📱 系統將自動發送課程提醒通知")
+    print("📊 系統將自動上傳行事曆到 Google Sheet")
     
     return scheduler
 
