@@ -291,19 +291,19 @@ def check_upcoming_courses():
                                     # 處理多行描述
                                     description = line[12:].strip()
                                     i += 1
-                                        # 繼續讀取後續行，直到遇到新的欄位或空行
-                                        while i < len(lines):
-                                            next_line = lines[i]
-                                            # 檢查是否為新欄位（不 strip，保持原始格式）
-                                            if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
-                                                # 如果是縮排行（以空格開頭），直接拼接
-                                                if next_line.startswith(' '):
-                                                    description += next_line[1:]  # 移除開頭的空白
-                                                else:
-                                                    description += '\n' + next_line.strip()
-                                                i += 1
+                                    # 繼續讀取後續行，直到遇到新的欄位或空行
+                                    while i < len(lines):
+                                        next_line = lines[i]
+                                        # 檢查是否為新欄位（不 strip，保持原始格式）
+                                        if next_line.strip() and not next_line.strip().startswith(('SUMMARY:', 'DTSTART', 'DTEND', 'LOCATION:', 'END:')):
+                                            # 如果是縮排行（以空格開頭），直接拼接
+                                            if next_line.startswith(' '):
+                                                description += next_line[1:]  # 移除開頭的空白
                                             else:
-                                                break
+                                                description += '\n' + next_line.strip()
+                                            i += 1
+                                        else:
+                                            break
                                     i -= 1  # 回退一行，因為外層循環會自動增加
                                 elif line.startswith('DTSTART'):
                                     start_match = re.search(r'DTSTART[^:]*:(.+)', line)
