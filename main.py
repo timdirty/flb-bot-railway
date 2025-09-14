@@ -357,7 +357,7 @@ def upload_weekly_calendar_to_sheet():
                                     
                                     # 整理課別格式，其餘部分放到備注2
                                     # 從 summary 中提取課程類型（如 SPM, ESM, SPIKE 等）
-                                    course_type = "ESM"  # 預設使用 ESM，避免資料驗證錯誤
+                                    course_type = "未知課程"  # 預設值
                                     remaining_summary = summary
                                     
                                     # 提取課程類型（大寫字母組合）
@@ -366,6 +366,10 @@ def upload_weekly_calendar_to_sheet():
                                         course_type = course_match.group(1)
                                         # 移除已提取的課程類型，其餘部分放到備注2
                                         remaining_summary = summary.replace(course_type, '').strip()
+                                    
+                                    # 如果沒有找到課程類型，顯示未知課程
+                                    if not course_match:
+                                        print(f"⚠️ 未找到課程類型，使用預設值: {summary}")
                                     
                                     # 從剩餘內容中提取地點資訊（到府、外、松山等）
                                     location_from_title = ""
