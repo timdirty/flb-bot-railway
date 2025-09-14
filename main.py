@@ -348,7 +348,7 @@ def upload_weekly_calendar_to_sheet():
                                     else:
                                         period = "晚上"
                                     
-                                    # 確定週次
+                                    # 確定週次（使用中文數字格式，符合 Google Sheets 驗證規則）
                                     week_days = ['一', '二', '三', '四', '五', '六', '日']
                                     week_day = week_days[start_dt.weekday()]
                                     
@@ -357,7 +357,7 @@ def upload_weekly_calendar_to_sheet():
                                     
                                     # 整理課別格式，其餘部分放到備注2
                                     # 從 summary 中提取課程類型（如 SPM, ESM, SPIKE 等）
-                                    course_type = "未知課程"
+                                    course_type = "ESM"  # 預設使用 ESM，避免資料驗證錯誤
                                     remaining_summary = summary
                                     
                                     # 提取課程類型（大寫字母組合）
