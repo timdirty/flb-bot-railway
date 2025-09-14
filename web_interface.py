@@ -1694,6 +1694,23 @@ def api_upload_weekly_calendar():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/trigger_calendar_upload', methods=['GET'])
+def api_trigger_calendar_upload():
+    """觸發行事曆上傳（與 main.py 中的端點一致）"""
+    try:
+        from main import trigger_calendar_upload
+        
+        # 執行觸發行事曆上傳
+        result = trigger_calendar_upload()
+        
+        return jsonify({
+            "success": True,
+            "message": "行事曆上傳觸發成功",
+            "data": result
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 def start_scheduler():
     """啟動定時任務"""
     try:

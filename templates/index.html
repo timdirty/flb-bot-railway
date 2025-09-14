@@ -850,8 +850,8 @@
                 button.disabled = true;
                 button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上傳中...';
                 
-                const response = await fetch('/api/upload_weekly_calendar', {
-                    method: 'POST',
+                const response = await fetch('/api/trigger_calendar_upload', {
+                    method: 'GET',
                     headers: {
                         'Content-Type': 'application/json'
                     }
@@ -862,7 +862,7 @@
                 if (data.success) {
                     showNotification('當週行事曆上傳已完成', 'success');
                 } else {
-                    showNotification('上傳失敗: ' + data.error, 'error');
+                    showNotification('上傳失敗: ' + data.message, 'error');
                 }
             } catch (error) {
                 console.error('上傳行事曆失敗:', error);
