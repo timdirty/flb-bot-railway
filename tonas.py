@@ -159,36 +159,44 @@ END:VCALENDAR
 
 print(f"📊 總共收集到 {len(events_to_add)} 個事件需要處理")
 
-# 清理舊的 Notion 事件
-print("🧹 開始清理從 Notion 同步的事件...")
-for calendar_name, calendar in calendar_map.items():
-    try:
-        events = calendar.events()
-        notion_event_count = 0
-        manual_event_count = 0
-        
-        for event in events:
-            try:
-                # 讀取事件內容
-                event_data = event.data
-                if isinstance(event_data, bytes):
-                    event_data = event_data.decode('utf-8')
-                
-                # 檢查是否包含 Notion 同步標記
-                if NOTION_SYNC_MARKER in event_data:
-                    event.delete()
-                    notion_event_count += 1
-                else:
-                    manual_event_count += 1
-                    
-            except Exception as e:
-                print(f"⚠️ 處理事件失敗 ({calendar_name}): {e}")
-                
-        print(f"✅ {calendar_name} 行事曆處理完成 - 刪除 {notion_event_count} 個 Notion 事件，保留 {manual_event_count} 個手動事件")
-    except Exception as e:
-        print(f"❌ 處理行事曆失敗 ({calendar_name}): {e}")
+# 清理舊的 Notion 事件（只清理與新事件重複的）
+print("🧹 開始清理重複的 Notion 同步事件...")
+events_to_remove = set()  # 儲存需要刪除的事件
 
-print("🎉 Notion 事件清理完成！\n")
+# 先收集需要刪除的事件
+for event_info in events_to_add:
+    calendar_name = event_info['calendar_name']
+    event_title = event_info['event_title']
+    class_id = event_info['class_id']
+    
+    if calendar_name in calendar_map:
+        try:
+            events = calendar_map[calendar_name].events()
+            for event in events:
+                try:
+                    event_data = event.data
+                    if isinstance(event_data, bytes):
+                        event_data = event_data.decode('utf-8')
+                    
+                    # 檢查是否為相同的 Notion 同步事件
+                    if (NOTION_SYNC_MARKER in event_data and 
+                        f"{event_title} 第{class_id}週" in event_data):
+                        events_to_remove.add(event)
+                        break
+                except:
+                    continue
+        except Exception as e:
+            print(f"⚠️ 檢查事件失敗 ({calendar_name}): {e}")
+
+# 刪除重複的事件
+for event in events_to_remove:
+    try:
+        event.delete()
+        print(f"🗑️ 刪除重複的 Notion 同步事件")
+    except Exception as e:
+        print(f"⚠️ 刪除事件失敗: {e}")
+
+print(f"🎉 清理完成！刪除了 {len(events_to_remove)} 個重複事件\n")
 
 # 新增收集到的事件
 if events_to_add:

@@ -19,9 +19,10 @@ ENV TZ=Asia/Taipei \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# 安裝必要系統套件 + supervisor
+# 安裝必要系統套件 + supervisor + Railway CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata ca-certificates curl supervisor libxml2 libxslt1.1 \
+    && curl -fsSL https://railway.app/install.sh | sh \
     && rm -rf /var/lib/apt/lists/*
 
 # 安裝 ngrok
