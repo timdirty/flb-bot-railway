@@ -1033,51 +1033,88 @@ def health():
     """健康檢查"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+@app.route('/api/trigger_tasks')
+def trigger_tasks():
+    """手動觸發定時任務（用於 Railway 環境）"""
+    try:
+        print("🔔 手動觸發定時任務...")
+        
+        # 執行所有定時任務
+        check_upcoming_courses()
+        upload_weekly_calendar_to_sheet()
+        
+        return {
+            "success": True, 
+            "message": "定時任務已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發定時任務失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發定時任務失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_course_check')
+def trigger_course_check():
+    """手動觸發課程檢查"""
+    try:
+        print("🔔 手動觸發課程檢查...")
+        check_upcoming_courses()
+        return {
+            "success": True, 
+            "message": "課程檢查已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發課程檢查失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發課程檢查失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_calendar_upload')
+def trigger_calendar_upload():
+    """手動觸發行事曆上傳"""
+    try:
+        print("📊 手動觸發行事曆上傳...")
+        upload_weekly_calendar_to_sheet()
+        return {
+            "success": True, 
+            "message": "行事曆上傳已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發行事曆上傳失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發行事曆上傳失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 if __name__ == "__main__":
-    # 啟動定時任務
-    scheduler = start_scheduler()
-    
     # 檢查是否在 Railway 環境中
     port = int(os.environ.get("PORT", 5000))
+    is_railway = os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PORT")
     
-    try:
-        # 在 Railway 環境中，同時啟動 Flask 應用程式
-        if os.environ.get("RAILWAY_ENVIRONMENT"):
-            print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
-            # 使用 threading 讓定時任務在背景運行
-            import threading
-            def run_flask():
-                app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
-            
-            # 在背景線程中運行 Flask
-            flask_thread = threading.Thread(target=run_flask, daemon=True)
-            flask_thread.start()
-            
-            # 主線程繼續運行定時任務
-            print("⏰ 定時任務在背景運行，按 Ctrl+C 停止系統")
-            print("🔔 定時任務狀態檢查...")
-            
-            # 定期檢查定時任務狀態
-            import time
-            check_count = 0
-            while True:
-                time.sleep(30)  # 每30秒檢查一次
-                check_count += 1
-                print(f"🔍 定時任務狀態檢查 #{check_count} - {datetime.now().strftime('%H:%M:%S')}")
-                
-                # 檢查定時任務是否還在運行
-                if scheduler.running:
-                    print("✅ 定時任務運行正常")
-                else:
-                    print("❌ 定時任務已停止，重新啟動...")
-                    scheduler.start()
-        else:
-            # 本地環境，只運行定時任務
+    if is_railway:
+        # Railway 環境：只運行 Flask 應用程式，定時任務由外部觸發
+        print(f"🌐 在 Railway 環境中啟動 Flask 應用程式，端口: {port}")
+        print("📱 定時任務將由外部 API 觸發")
+        app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+    else:
+        # 本地環境：啟動定時任務和 Flask 應用程式
+        print("🏠 本地環境：啟動定時任務和 Flask 應用程式")
+        scheduler = start_scheduler()
+        
+        try:
             print("⏰ 按 Ctrl+C 停止系統")
             while True:
                 import time
                 time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n🛑 正在停止系統...")
-        scheduler.shutdown()
-        print("✅ 系統已停止")
+        except KeyboardInterrupt:
+            print("\n🛑 正在停止系統...")
+            scheduler.shutdown()
+            print("✅ 系統已停止")
