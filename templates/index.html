@@ -719,18 +719,19 @@
             refreshStatus();
             refreshTeachers();
             refreshCalendars();
-            refreshLogs();
-            refreshRailwayLogs(); // 載入 Railway 日誌
+            // 只在頁面載入時載入一次日誌，不自動刷新
+            // refreshLogs();
+            // refreshRailwayLogs();
             loadAdminConfig(); // 載入管理員設定
             loadTestModeStatus(); // 載入測試模式狀態
             loadSystemConfig(); // 載入系統設定
             initializeDateFilter(); // 初始化日期篩選器
             
             // 設定定時更新
-            statusInterval = setInterval(refreshStatus, 30000); // 每30秒更新狀態
+            statusInterval = setInterval(refreshStatus, 300000); // 每5分鐘更新狀態
             timeInterval = setInterval(updateCurrentTime, 1000); // 每秒更新時間
-            countdownInterval = setInterval(updateCountdown, 1000); // 每秒更新倒數計時
-            taskInterval = setInterval(checkTasks, 60000); // 每分鐘檢查任務
+            countdownInterval = setInterval(updateCountdown, 1000); // 每秒更新倒數計時（純前端計算）
+            // 移除 taskInterval，因為現在完全依賴 Uptime Robot 觸發
             
             // 初始化倒數計時
             updateCountdown();
@@ -742,65 +743,64 @@
             document.getElementById('current-time').textContent = now.toLocaleString('zh-TW');
         }
 
-        // 檢查並執行任務
-        function checkTasks() {
-            fetch('/api/check_tasks')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('✅ 任務檢查完成:', data.message);
-                    } else {
-                        console.error('❌ 任務檢查失敗:', data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ 任務檢查錯誤:', error);
-                });
-        }
+        // 檢查並執行任務（已移除，現在完全依賴 Uptime Robot 觸發）
+        // function checkTasks() { ... }
 
-        // 更新倒數計時
-        async function updateCountdown() {
-            try {
-                const response = await fetch('/api/next_check_time');
-                const data = await response.json();
-                
-                if (data.success) {
-                    const remainingSeconds = data.remaining_seconds;
-                    const nextCheckTime = data.next_check_time;
-                    
-                    // 更新下次檢查時間
-                    document.getElementById('next-check-time').textContent = `下次檢查: ${nextCheckTime}`;
-                    
-                    // 計算時分秒
-                    const hours = Math.floor(remainingSeconds / 3600);
-                    const minutes = Math.floor((remainingSeconds % 3600) / 60);
-                    const seconds = remainingSeconds % 60;
-                    
-                    // 格式化時間顯示
-                    let timeString = '';
-                    if (hours > 0) {
-                        timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                    } else {
-                        timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                    }
-                    
-                    // 更新倒數計時顯示
-                    const countdownElement = document.getElementById('countdown-timer');
-                    countdownElement.textContent = timeString;
-                    
-                    // 根據剩餘時間改變顏色
-                    if (remainingSeconds <= 60) {
-                        countdownElement.className = 'fs-4 fw-bold text-danger me-2';
-                    } else if (remainingSeconds <= 300) {
-                        countdownElement.className = 'fs-4 fw-bold text-warning me-2';
-                    } else {
-                        countdownElement.className = 'fs-4 fw-bold text-primary me-2';
-                    }
-                }
-            } catch (error) {
-                console.error('更新倒數計時失敗:', error);
-                document.getElementById('countdown-timer').textContent = '--:--';
-                document.getElementById('next-check-time').textContent = '載入失敗';
+        // 更新倒數計時（純前端計算，不調用 API）
+        function updateCountdown() {
+            // 假設 Uptime Robot 每 5 分鐘觸發一次
+            const intervalMinutes = 5;
+            const now = new Date();
+            const nextTrigger = new Date(now);
+            
+            // 計算下一個 5 分鐘整點時間
+            const currentMinutes = now.getMinutes();
+            const nextTriggerMinutes = Math.ceil(currentMinutes / intervalMinutes) * intervalMinutes;
+            
+            if (nextTriggerMinutes >= 60) {
+                nextTrigger.setHours(nextTrigger.getHours() + 1);
+                nextTrigger.setMinutes(0);
+            } else {
+                nextTrigger.setMinutes(nextTriggerMinutes);
+            }
+            nextTrigger.setSeconds(0);
+            nextTrigger.setMilliseconds(0);
+            
+            const remainingMs = nextTrigger - now;
+            const remainingSeconds = Math.floor(remainingMs / 1000);
+            
+            // 更新下次檢查時間
+            const nextCheckTime = nextTrigger.toLocaleTimeString('zh-TW', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            document.getElementById('next-check-time').textContent = `下次觸發: ${nextCheckTime}`;
+            
+            // 計算時分秒
+            const hours = Math.floor(remainingSeconds / 3600);
+            const minutes = Math.floor((remainingSeconds % 3600) / 60);
+            const seconds = remainingSeconds % 60;
+            
+            // 格式化時間顯示
+            let timeString = '';
+            if (hours > 0) {
+                timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            } else {
+                timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            // 更新倒數計時顯示
+            const countdownElement = document.getElementById('countdown-timer');
+            countdownElement.textContent = timeString;
+            
+            // 根據剩餘時間改變顏色
+            if (remainingSeconds <= 60) {
+                countdownElement.className = 'fs-4 fw-bold text-danger me-2';
+            } else if (remainingSeconds <= 300) {
+                countdownElement.className = 'fs-4 fw-bold text-warning me-2';
+            } else {
+                countdownElement.className = 'fs-4 fw-bold text-primary me-2';
             }
         }
 
