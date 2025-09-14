@@ -259,6 +259,16 @@ def upload_weekly_calendar_to_sheet():
                                             else:
                                                 teacher_name = raw_teacher_name
                                     
+                                    # 如果描述中沒有找到講師資訊，嘗試從行事曆名稱中模糊比對
+                                    if teacher_name == "未知老師":
+                                        print(f"🔍 嘗試從行事曆名稱模糊比對講師: {summary}")
+                                        match_result = teacher_manager.fuzzy_match_teacher(summary)
+                                        if match_result:
+                                            teacher_name = match_result[0]
+                                            print(f"✅ 找到匹配講師: {teacher_name}")
+                                        else:
+                                            print(f"❌ 無法從行事曆名稱匹配講師: {summary}")
+                                    
                                     # 解析課程資訊
                                     course_type = "未知課程"
                                     note1 = ""
