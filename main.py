@@ -1026,6 +1026,67 @@ def health():
     """健康檢查"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+@app.route('/api/trigger_tasks')
+def trigger_tasks():
+    """手動觸發定時任務（用於 Railway 環境）"""
+    try:
+        print("🔔 手動觸發定時任務...")
+        
+        # 執行所有定時任務
+        check_upcoming_courses()
+        upload_weekly_calendar_to_sheet()
+        
+        return {
+            "success": True, 
+            "message": "定時任務已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發定時任務失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發定時任務失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_course_check')
+def trigger_course_check():
+    """手動觸發課程檢查"""
+    try:
+        print("🔔 手動觸發課程檢查...")
+        check_upcoming_courses()
+        return {
+            "success": True, 
+            "message": "課程檢查已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發課程檢查失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發課程檢查失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_calendar_upload')
+def trigger_calendar_upload():
+    """手動觸發行事曆上傳"""
+    try:
+        print("📊 手動觸發行事曆上傳...")
+        upload_weekly_calendar_to_sheet()
+        return {
+            "success": True, 
+            "message": "行事曆上傳已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發行事曆上傳失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發行事曆上傳失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 # 定時任務管理器
 class TaskManager:
     """定時任務管理器，類似老師快取更新機制"""
