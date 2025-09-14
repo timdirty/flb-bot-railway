@@ -17,11 +17,16 @@ weekday_dict = {
     6: "Sun",
 }
 
+# 定義 Notion 同步事件的標記
+NOTION_SYNC_MARKER = "[NOTION_SYNC]"
+
 
 def sep_name(text):
     if pd.isna(text):  # 如果是 NaN，直接回傳空 list
         return []
-    return re.findall(r"([\u4e00-\u9fffA-Za-z]+) \(", text.upper())
+    names = re.findall(r"([\u4e00-\u9fffA-Za-z]+) \(", text.upper())
+    # 將「紫米」對應到「AGNES」
+    return ['AGNES' if name == '紫米' else name for name in names]
 
 
 # Synology CalDAV 設定
@@ -64,23 +69,38 @@ for cal in calendars:
     calendar_name = cal.name.upper()  # 直接用內建 name
     calendar_map[calendar_name] = cal
 
-# 清空所有行事曆
-print("🧹 開始清空所有行事曆...")
+# 只清空從 Notion 同步的事件，保留手動新增的事件
+print("🧹 開始清理從 Notion 同步的事件...")
 for calendar_name, calendar in calendar_map.items():
     try:
         events = calendar.events()
-        event_count = 0
+        notion_event_count = 0
+        manual_event_count = 0
+        
         for event in events:
             try:
-                event.delete()
-                event_count += 1
+                # 讀取事件內容
+                event_data = event.data
+                if isinstance(event_data, bytes):
+                    event_data = event_data.decode('utf-8')
+                
+                # 檢查是否包含 Notion 同步標記
+                if NOTION_SYNC_MARKER in event_data:
+                    event.delete()
+                    notion_event_count += 1
+                    print(f"🗑️ 刪除 Notion 同步事件: {calendar_name}")
+                else:
+                    manual_event_count += 1
+                    print(f"✅ 保留手動事件: {calendar_name}")
+                    
             except Exception as e:
-                print(f"⚠️ 刪除事件失敗 ({calendar_name}): {e}")
-        print(f"✅ 已清空 {calendar_name} 行事曆，刪除 {event_count} 個事件")
+                print(f"⚠️ 處理事件失敗 ({calendar_name}): {e}")
+                
+        print(f"✅ {calendar_name} 行事曆處理完成 - 刪除 {notion_event_count} 個 Notion 事件，保留 {manual_event_count} 個手動事件")
     except Exception as e:
-        print(f"❌ 清空行事曆失敗 ({calendar_name}): {e}")
+        print(f"❌ 處理行事曆失敗 ({calendar_name}): {e}")
 
-print("🎉 行事曆清空完成！\n")
+print("🎉 Notion 事件清理完成！\n")
 
 if calendars and schedule_files:
     print("🚀 開始處理展開課表檔案...")
@@ -126,7 +146,7 @@ if calendars and schedule_files:
                 class_address = row["上課地址"]
                 lesson_plan = row.get("SPM教案 ", "") or row.get("教案", "") or ""
                 
-                # 建立事件資料
+                # 建立事件資料，加入 Notion 同步標記
                 event_data = f"""BEGIN:VCALENDAR
 VERSION:2.0 
 BEGIN:VEVENT
@@ -135,7 +155,7 @@ DTSTAMP:{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}
 DTSTART;TZID=Asia/Taipei:{start_datetime.strftime('%Y%m%dT%H%M%SZ')}
 DTEND;TZID=Asia/Taipei:{end_datetime.strftime('%Y%m%dT%H%M%SZ')}
 SUMMARY:{event_title} 第{class_id}週
-DESCRIPTION:時間: {start_datetime.strftime('%Y%m%d')} {start_time}-{end_time} 班級:{class_name} 講師: {row['講師']} 助教: {row['助教']} 教案: {lesson_plan}
+DESCRIPTION:{NOTION_SYNC_MARKER} 時間: {start_datetime.strftime('%Y%m%d')} {start_time}-{end_time} 班級:{class_name} 講師: {row['講師']} 助教: {row['助教']} 教案: {lesson_plan}
 LOCATION:{class_address}
 END:VEVENT
 END:VCALENDAR
@@ -145,8 +165,28 @@ END:VCALENDAR
                 if teacher_name_list:
                     for teacher_name in teacher_name_list:
                         if teacher_name in calendar_map:
-                            calendar_map[teacher_name].add_event(event_data)
-                            print(f"✅ 已新增事件: {teacher_name} {event_title} 第{class_id}週 {start_datetime}")
+                            # 檢查是否已存在相同事件（簡化檢查邏輯）
+                            existing_events = calendar_map[teacher_name].events()
+                            event_exists = False
+                            for existing_event in existing_events:
+                                try:
+                                    existing_data = existing_event.data
+                                    if isinstance(existing_data, bytes):
+                                        existing_data = existing_data.decode('utf-8')
+                                    
+                                    # 檢查是否為相同的 Notion 同步事件（只檢查標題和週數）
+                                    if (NOTION_SYNC_MARKER in existing_data and 
+                                        f"{event_title} 第{class_id}週" in existing_data):
+                                        event_exists = True
+                                        break
+                                except:
+                                    continue
+                            
+                            if not event_exists:
+                                calendar_map[teacher_name].add_event(event_data)
+                                print(f"✅ 已新增事件: {teacher_name} {event_title} 第{class_id}週 {start_datetime}")
+                            else:
+                                print(f"⏩ 事件已存在，跳過: {teacher_name} {event_title} 第{class_id}週")
                         else:
                             print(f"⚠️ 找不到講師行事曆: {teacher_name}")
                 else:
@@ -156,8 +196,28 @@ END:VCALENDAR
                 if TA_name_list:
                     for TA_name in TA_name_list:
                         if TA_name in calendar_map:
-                            calendar_map[TA_name].add_event(event_data)
-                            print(f"✅ 已新增事件: {TA_name} {event_title} 第{class_id}週 {start_datetime}")
+                            # 檢查是否已存在相同事件（簡化檢查邏輯）
+                            existing_events = calendar_map[TA_name].events()
+                            event_exists = False
+                            for existing_event in existing_events:
+                                try:
+                                    existing_data = existing_event.data
+                                    if isinstance(existing_data, bytes):
+                                        existing_data = existing_data.decode('utf-8')
+                                    
+                                    # 檢查是否為相同的 Notion 同步事件（只檢查標題和週數）
+                                    if (NOTION_SYNC_MARKER in existing_data and 
+                                        f"{event_title} 第{class_id}週" in existing_data):
+                                        event_exists = True
+                                        break
+                                except:
+                                    continue
+                            
+                            if not event_exists:
+                                calendar_map[TA_name].add_event(event_data)
+                                print(f"✅ 已新增事件: {TA_name} {event_title} 第{class_id}週 {start_datetime}")
+                            else:
+                                print(f"⏩ 事件已存在，跳過: {TA_name} {event_title} 第{class_id}週")
                         else:
                             print(f"⚠️ 找不到助教行事曆: {TA_name}")
                 else:

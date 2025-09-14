@@ -38,7 +38,7 @@
 2. 點擊右上角 "+" → "New repository"
 3. 倉庫名稱：`flb-bot-railway`
 4. 描述：`LINE Bot Course Reminder System for Railway`
-5. 選擇 "Public" 或 "Private"
+5. 選擇 "Public" 或 "Private"   
 6. **不要**勾選任何初始化選項
 7. 點擊 "Create repository"
 
@@ -47,7 +47,7 @@
 複製以下命令並在終端機中執行（替換 `YOUR_USERNAME` 為您的 GitHub 用戶名）：
 
 ```bash
-git remote add origin https://github.com/YOUR_USERNAME/flb-bot-railway.git
+git remote add origin https://github.com/timdirty/flb-bot-railway.git
 git push -u origin main
 ```
 
