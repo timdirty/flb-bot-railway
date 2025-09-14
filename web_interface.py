@@ -1285,18 +1285,174 @@ def api_calendar_events():
     except Exception as e:
         return jsonify({"success": False, "message": f"獲取行事曆事件失敗: {str(e)}"})
 
+def get_railway_logs():
+    """獲取 Railway 應用程式日誌"""
+    try:
+        import subprocess
+        import json
+        
+        # 使用 Railway CLI 獲取日誌
+        result = subprocess.run(
+            ["railway", "logs", "--json", "--tail", "100"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            logs = result.stdout.strip().split('\n')
+            parsed_logs = []
+            
+            for log_line in logs:
+                try:
+                    if log_line.strip():
+                        log_data = json.loads(log_line)
+                        parsed_logs.append({
+                            'timestamp': log_data.get('timestamp', ''),
+                            'level': log_data.get('level', 'INFO'),
+                            'message': log_data.get('message', ''),
+                            'service': log_data.get('service', 'main'),
+                            'source': 'railway'
+                        })
+                except:
+                    # 如果不是 JSON 格式，直接顯示原始日誌
+                    if log_line.strip():
+                        parsed_logs.append({
+                            'timestamp': datetime.now().isoformat(),
+                            'level': 'INFO',
+                            'message': log_line.strip(),
+                            'service': 'main',
+                            'source': 'railway'
+                        })
+            
+            return parsed_logs
+        else:
+            return [{
+                'timestamp': datetime.now().isoformat(),
+                'level': 'ERROR',
+                'message': f'無法獲取 Railway 日誌: {result.stderr}',
+                'service': 'main',
+                'source': 'railway'
+            }]
+            
+    except subprocess.TimeoutExpired:
+        return [{
+            'timestamp': datetime.now().isoformat(),
+            'level': 'ERROR',
+            'message': '獲取 Railway 日誌超時',
+            'service': 'main',
+            'source': 'railway'
+        }]
+    except FileNotFoundError:
+        return [{
+            'timestamp': datetime.now().isoformat(),
+            'level': 'WARNING',
+            'message': 'Railway CLI 未安裝或不在 PATH 中',
+            'service': 'main',
+            'source': 'railway'
+        }]
+    except Exception as e:
+        return [{
+            'timestamp': datetime.now().isoformat(),
+            'level': 'ERROR',
+            'message': f'獲取 Railway 日誌失敗: {str(e)}',
+            'service': 'main',
+            'source': 'railway'
+        }]
+
+def get_system_logs():
+    """獲取系統日誌（本地日誌）"""
+    try:
+        logs = []
+        
+        # 添加系統狀態日誌
+        logs.append({
+            'timestamp': datetime.now().isoformat(),
+            'level': 'INFO',
+            'message': '系統管理介面已啟動',
+            'service': 'web_interface',
+            'source': 'local'
+        })
+        
+        # 添加系統狀態
+        if system_status.get("running"):
+            logs.append({
+                'timestamp': datetime.now().isoformat(),
+                'level': 'INFO',
+                'message': f'系統正在運行中 (PID: {system_status.get("pid", "未知")})',
+                'service': 'main',
+                'source': 'local'
+            })
+        else:
+            logs.append({
+                'timestamp': datetime.now().isoformat(),
+                'level': 'WARNING',
+                'message': '系統未在運行',
+                'service': 'main',
+                'source': 'local'
+            })
+        
+        # 添加測試模式狀態
+        if test_mode_config.get("test_mode", False):
+            logs.append({
+                'timestamp': datetime.now().isoformat(),
+                'level': 'INFO',
+                'message': '當前為測試模式',
+                'service': 'config',
+                'source': 'local'
+            })
+        
+        return logs
+        
+    except Exception as e:
+        return [{
+            'timestamp': datetime.now().isoformat(),
+            'level': 'ERROR',
+            'message': f'獲取系統日誌失敗: {str(e)}',
+            'service': 'web_interface',
+            'source': 'local'
+        }]
+
 @app.route('/api/logs')
 def api_logs():
-    """API: 獲取系統日誌"""
+    """API: 獲取系統日誌（包含 Railway 日誌）"""
     try:
-        # 這裡可以實作日誌讀取功能
-        logs = [
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 系統管理介面已啟動",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 等待系統啟動..."
-        ]
-        return jsonify({"success": True, "data": logs})
+        # 獲取本地系統日誌
+        local_logs = get_system_logs()
+        
+        # 獲取 Railway 日誌
+        railway_logs = get_railway_logs()
+        
+        # 合併日誌並按時間排序
+        all_logs = local_logs + railway_logs
+        all_logs.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        return jsonify({
+            "success": True, 
+            "data": {
+                "logs": all_logs,
+                "total_count": len(all_logs),
+                "local_count": len(local_logs),
+                "railway_count": len(railway_logs)
+            }
+        })
     except Exception as e:
         return jsonify({"success": False, "message": f"獲取日誌失敗: {str(e)}"})
+
+@app.route('/api/railway_logs')
+def api_railway_logs():
+    """API: 獲取 Railway 日誌"""
+    try:
+        logs = get_railway_logs()
+        return jsonify({
+            "success": True, 
+            "data": {
+                "logs": logs,
+                "total_count": len(logs)
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": f"獲取 Railway 日誌失敗: {str(e)}"})
 
 @app.route('/api/system_config')
 def api_system_config():

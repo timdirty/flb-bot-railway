@@ -194,6 +194,11 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
+                <button class="nav-link" id="railway-logs-tab" data-bs-toggle="tab" data-bs-target="#railway-logs" type="button" role="tab">
+                    <i class="fas fa-cloud"></i> Railway 日誌
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="system-settings-tab" data-bs-toggle="tab" data-bs-target="#system-settings" type="button" role="tab">
                     <i class="fas fa-cog"></i> 系統設定
                 </button>
@@ -427,6 +432,44 @@
                         <button type="button" class="btn btn-success" onclick="sendAdminNotification()">
                             <i class="fas fa-paper-plane"></i> 發送通知
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Railway 日誌標籤頁 -->
+            <div class="tab-pane fade" id="railway-logs" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cloud"></i> Railway 應用程式日誌
+                        </h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="refreshRailwayLogs()">
+                                <i class="fas fa-sync"></i> 重新載入
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="toggleRailwayLogs()">
+                                <i class="fas fa-eye"></i> 切換顯示
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Railway 日誌說明：</strong>
+                            這裡顯示 Railway 部署環境的應用程式日誌。需要安裝 Railway CLI 才能獲取日誌。
+                            <br>
+                            <small class="text-muted">
+                                如果無法獲取日誌，請確認已安裝 Railway CLI 並已登入。
+                            </small>
+                        </div>
+                        <div class="log-container" id="railway-logs-content" style="max-height: 500px;">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">載入中...</span>
+                                </div>
+                                <p class="mt-2">載入 Railway 日誌中...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -677,6 +720,7 @@
             refreshTeachers();
             refreshCalendars();
             refreshLogs();
+            refreshRailwayLogs(); // 載入 Railway 日誌
             loadAdminConfig(); // 載入管理員設定
             loadTestModeStatus(); // 載入測試模式狀態
             loadSystemConfig(); // 載入系統設定
@@ -1253,21 +1297,88 @@
         }
 
         // 顯示日誌
-        function displayLogs(logs) {
+        function displayLogs(data) {
             const container = document.getElementById('logs-content');
             
-            if (!logs || logs.length === 0) {
+            if (!data || !data.logs || data.logs.length === 0) {
                 container.innerHTML = '<div class="text-muted">沒有日誌記錄</div>';
                 return;
             }
 
             let html = '';
-            logs.forEach(log => {
-                html += `<div class="mb-1">${log}</div>`;
+            
+            // 添加日誌統計資訊
+            html += `<div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle"></i>
+                總日誌數: ${data.total_count} | 
+                本地日誌: ${data.local_count} | 
+                Railway 日誌: ${data.railway_count}
+            </div>`;
+            
+            // 顯示日誌條目
+            data.logs.forEach(log => {
+                const levelClass = getLogLevelClass(log.level);
+                const sourceBadge = getSourceBadge(log.source);
+                const timestamp = formatTimestamp(log.timestamp);
+                
+                html += `
+                    <div class="log-entry mb-2 p-2 border rounded ${levelClass}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="badge ${levelClass} me-2">${log.level}</span>
+                                    ${sourceBadge}
+                                    <small class="text-muted ms-2">${timestamp}</small>
+                                </div>
+                                <div class="log-message">${log.message}</div>
+                                ${log.service ? `<small class="text-muted">服務: ${log.service}</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
             });
 
             container.innerHTML = html;
             container.scrollTop = container.scrollHeight;
+        }
+
+        // 獲取日誌級別樣式
+        function getLogLevelClass(level) {
+            switch(level?.toUpperCase()) {
+                case 'ERROR':
+                    return 'border-danger bg-danger bg-opacity-10';
+                case 'WARNING':
+                    return 'border-warning bg-warning bg-opacity-10';
+                case 'INFO':
+                    return 'border-info bg-info bg-opacity-10';
+                case 'SUCCESS':
+                    return 'border-success bg-success bg-opacity-10';
+                default:
+                    return 'border-secondary bg-light';
+            }
+        }
+
+        // 獲取來源標籤
+        function getSourceBadge(source) {
+            switch(source) {
+                case 'railway':
+                    return '<span class="badge bg-primary">Railway</span>';
+                case 'local':
+                    return '<span class="badge bg-secondary">本地</span>';
+                default:
+                    return '<span class="badge bg-light text-dark">未知</span>';
+            }
+        }
+
+        // 格式化時間戳
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '未知時間';
+            try {
+                const date = new Date(timestamp);
+                return date.toLocaleString('zh-TW');
+            } catch {
+                return timestamp;
+            }
         }
 
         // 顯示通知
@@ -1956,6 +2067,98 @@
             document.getElementById('evening-reminder-time').value = '19:00';
             
             showNotification('已重置為預設設定', 'info');
+        }
+
+        // 重新載入 Railway 日誌
+        async function refreshRailwayLogs() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            const container = document.getElementById('railway-logs-content');
+            
+            try {
+                // 顯示載入狀態
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 載入中...';
+                container.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">載入中...</span></div><p class="mt-2">載入 Railway 日誌中...</p></div>';
+                
+                const response = await fetch('/api/railway_logs');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayRailwayLogs(data.data);
+                    showNotification('Railway 日誌載入成功', 'success');
+                } else {
+                    container.innerHTML = `<div class="alert alert-danger">載入失敗: ${data.message}</div>`;
+                    showNotification('載入 Railway 日誌失敗', 'error');
+                }
+            } catch (error) {
+                console.error('載入 Railway 日誌失敗:', error);
+                container.innerHTML = `<div class="alert alert-danger">載入失敗: ${error.message}</div>`;
+                showNotification('載入 Railway 日誌失敗', 'error');
+            } finally {
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // 顯示 Railway 日誌
+        function displayRailwayLogs(data) {
+            const container = document.getElementById('railway-logs-content');
+            
+            if (!data || !data.logs || data.logs.length === 0) {
+                container.innerHTML = '<div class="text-muted">沒有 Railway 日誌記錄</div>';
+                return;
+            }
+
+            let html = '';
+            
+            // 添加日誌統計資訊
+            html += `<div class="alert alert-primary mb-3">
+                <i class="fas fa-cloud"></i>
+                <strong>Railway 日誌統計：</strong>
+                總日誌數: ${data.total_count}
+            </div>`;
+            
+            // 顯示日誌條目
+            data.logs.forEach(log => {
+                const levelClass = getLogLevelClass(log.level);
+                const timestamp = formatTimestamp(log.timestamp);
+                
+                html += `
+                    <div class="log-entry mb-2 p-2 border rounded ${levelClass}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="badge ${levelClass} me-2">${log.level}</span>
+                                    <span class="badge bg-primary me-2">Railway</span>
+                                    <small class="text-muted ms-2">${timestamp}</small>
+                                </div>
+                                <div class="log-message">${log.message}</div>
+                                ${log.service ? `<small class="text-muted">服務: ${log.service}</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // 切換 Railway 日誌顯示
+        function toggleRailwayLogs() {
+            const container = document.getElementById('railway-logs-content');
+            const btn = event.target;
+            
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-eye-slash"></i> 隱藏日誌';
+                refreshRailwayLogs();
+            } else {
+                container.style.display = 'none';
+                btn.innerHTML = '<i class="fas fa-eye"></i> 顯示日誌';
+            }
         }
     </script>
 </body>

@@ -1087,60 +1087,6 @@ def trigger_calendar_upload():
             "timestamp": datetime.now().isoformat()
         }
 
-@app.route('/api/get_logs')
-def get_logs():
-    """獲取系統日誌"""
-    try:
-        import subprocess
-        import os
-        
-        # 檢查是否在 Railway 環境
-        if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PORT"):
-            # Railway 環境：返回最近的行為日誌
-            logs = []
-            
-            # 模擬一些系統狀態日誌
-            logs.append(f"🕐 {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')} - 系統運行正常")
-            logs.append(f"🌐 Railway 環境檢測成功")
-            logs.append(f"📱 LINE Bot API 連接正常")
-            logs.append(f"📅 CalDAV 連接正常")
-            logs.append(f"📊 Google Apps Script API 連接正常")
-            
-            # 檢查最近的 API 觸發記錄
-            recent_triggers = []
-            try:
-                # 這裡可以添加從資料庫或檔案讀取觸發記錄的邏輯
-                recent_triggers.append("最近 5 分鐘內觸發記錄：")
-                recent_triggers.append("- /api/trigger_tasks: 成功")
-                recent_triggers.append("- /api/trigger_course_check: 成功")
-                recent_triggers.append("- /api/trigger_calendar_upload: 成功")
-            except:
-                recent_triggers.append("無法讀取觸發記錄")
-            
-            logs.extend(recent_triggers)
-            
-            return {
-                "success": True,
-                "logs": logs,
-                "timestamp": datetime.now().isoformat(),
-                "environment": "Railway"
-            }
-        else:
-            # 本地環境：返回本地日誌
-            return {
-                "success": True,
-                "message": "本地環境日誌查看功能",
-                "timestamp": datetime.now().isoformat(),
-                "environment": "Local"
-            }
-            
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"獲取日誌失敗: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        }
-
 # 注意：內部定時任務已移除，現在完全依賴 Uptime Robot 觸發 API 端點
 
 if __name__ == "__main__":

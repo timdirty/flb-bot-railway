@@ -69,42 +69,11 @@ for cal in calendars:
     calendar_name = cal.name.upper()  # 直接用內建 name
     calendar_map[calendar_name] = cal
 
-# 只清空從 Notion 同步的事件，保留手動新增的事件
-print("🧹 開始清理從 Notion 同步的事件...")
-for calendar_name, calendar in calendar_map.items():
-    try:
-        events = calendar.events()
-        notion_event_count = 0
-        manual_event_count = 0
-        
-        for event in events:
-            try:
-                # 讀取事件內容
-                event_data = event.data
-                if isinstance(event_data, bytes):
-                    event_data = event_data.decode('utf-8')
-                
-                # 檢查是否包含 Notion 同步標記
-                if NOTION_SYNC_MARKER in event_data:
-                    event.delete()
-                    notion_event_count += 1
-                    print(f"🗑️ 刪除 Notion 同步事件: {calendar_name}")
-                else:
-                    manual_event_count += 1
-                    print(f"✅ 保留手動事件: {calendar_name}")
-                    
-            except Exception as e:
-                print(f"⚠️ 處理事件失敗 ({calendar_name}): {e}")
-                
-        print(f"✅ {calendar_name} 行事曆處理完成 - 刪除 {notion_event_count} 個 Notion 事件，保留 {manual_event_count} 個手動事件")
-    except Exception as e:
-        print(f"❌ 處理行事曆失敗 ({calendar_name}): {e}")
-
-print("🎉 Notion 事件清理完成！\n")
+# 先收集所有需要新增的事件，然後再清理和新增
+print("📋 開始收集需要新增的事件...")
+events_to_add = []  # 儲存所有需要新增的事件
 
 if calendars and schedule_files:
-    print("🚀 開始處理展開課表檔案...")
-    
     for schedule_file in schedule_files:
         print(f"\n📁 處理檔案: {os.path.basename(schedule_file)}")
         
@@ -161,70 +130,83 @@ END:VEVENT
 END:VCALENDAR
 """
                 
-                # 處理老師行事曆
+                # 收集需要新增的事件
                 if teacher_name_list:
                     for teacher_name in teacher_name_list:
                         if teacher_name in calendar_map:
-                            # 檢查是否已存在相同事件（簡化檢查邏輯）
-                            existing_events = calendar_map[teacher_name].events()
-                            event_exists = False
-                            for existing_event in existing_events:
-                                try:
-                                    existing_data = existing_event.data
-                                    if isinstance(existing_data, bytes):
-                                        existing_data = existing_data.decode('utf-8')
-                                    
-                                    # 檢查是否為相同的 Notion 同步事件（只檢查標題和週數）
-                                    if (NOTION_SYNC_MARKER in existing_data and 
-                                        f"{event_title} 第{class_id}週" in existing_data):
-                                        event_exists = True
-                                        break
-                                except:
-                                    continue
-                            
-                            if not event_exists:
-                                calendar_map[teacher_name].add_event(event_data)
-                                print(f"✅ 已新增事件: {teacher_name} {event_title} 第{class_id}週 {start_datetime}")
-                            else:
-                                print(f"⏩ 事件已存在，跳過: {teacher_name} {event_title} 第{class_id}週")
-                        else:
-                            print(f"⚠️ 找不到講師行事曆: {teacher_name}")
-                else:
-                    print(f"⏩ 沒有老師需要新增，跳過。")
-
-                # 處理 TA 行事曆
+                            events_to_add.append({
+                                'calendar_name': teacher_name,
+                                'event_data': event_data,
+                                'event_title': event_title,
+                                'class_id': class_id,
+                                'start_datetime': start_datetime
+                            })
+                
                 if TA_name_list:
                     for TA_name in TA_name_list:
                         if TA_name in calendar_map:
-                            # 檢查是否已存在相同事件（簡化檢查邏輯）
-                            existing_events = calendar_map[TA_name].events()
-                            event_exists = False
-                            for existing_event in existing_events:
-                                try:
-                                    existing_data = existing_event.data
-                                    if isinstance(existing_data, bytes):
-                                        existing_data = existing_data.decode('utf-8')
-                                    
-                                    # 檢查是否為相同的 Notion 同步事件（只檢查標題和週數）
-                                    if (NOTION_SYNC_MARKER in existing_data and 
-                                        f"{event_title} 第{class_id}週" in existing_data):
-                                        event_exists = True
-                                        break
-                                except:
-                                    continue
-                            
-                            if not event_exists:
-                                calendar_map[TA_name].add_event(event_data)
-                                print(f"✅ 已新增事件: {TA_name} {event_title} 第{class_id}週 {start_datetime}")
-                            else:
-                                print(f"⏩ 事件已存在，跳過: {TA_name} {event_title} 第{class_id}週")
-                        else:
-                            print(f"⚠️ 找不到助教行事曆: {TA_name}")
-                else:
-                    print(f"⏩ 沒有 TA 需要新增，跳過。")
+                            events_to_add.append({
+                                'calendar_name': TA_name,
+                                'event_data': event_data,
+                                'event_title': event_title,
+                                'class_id': class_id,
+                                'start_datetime': start_datetime
+                            })
                     
         except Exception as e:
             print(f"❌ 處理檔案失敗 {os.path.basename(schedule_file)}: {e}")
             continue
+
+print(f"📊 總共收集到 {len(events_to_add)} 個事件需要處理")
+
+# 清理舊的 Notion 事件
+print("🧹 開始清理從 Notion 同步的事件...")
+for calendar_name, calendar in calendar_map.items():
+    try:
+        events = calendar.events()
+        notion_event_count = 0
+        manual_event_count = 0
+        
+        for event in events:
+            try:
+                # 讀取事件內容
+                event_data = event.data
+                if isinstance(event_data, bytes):
+                    event_data = event_data.decode('utf-8')
+                
+                # 檢查是否包含 Notion 同步標記
+                if NOTION_SYNC_MARKER in event_data:
+                    event.delete()
+                    notion_event_count += 1
+                else:
+                    manual_event_count += 1
+                    
+            except Exception as e:
+                print(f"⚠️ 處理事件失敗 ({calendar_name}): {e}")
+                
+        print(f"✅ {calendar_name} 行事曆處理完成 - 刪除 {notion_event_count} 個 Notion 事件，保留 {manual_event_count} 個手動事件")
+    except Exception as e:
+        print(f"❌ 處理行事曆失敗 ({calendar_name}): {e}")
+
+print("🎉 Notion 事件清理完成！\n")
+
+# 新增收集到的事件
+if events_to_add:
+    print("🚀 開始新增事件到行事曆...")
+    
+    for event_info in events_to_add:
+        calendar_name = event_info['calendar_name']
+        event_data = event_info['event_data']
+        event_title = event_info['event_title']
+        class_id = event_info['class_id']
+        start_datetime = event_info['start_datetime']
+        
+        try:
+            calendar_map[calendar_name].add_event(event_data)
+            print(f"✅ 已新增事件: {calendar_name} {event_title} 第{class_id}週 {start_datetime}")
+        except Exception as e:
+            print(f"❌ 新增事件失敗 ({calendar_name}): {e}")
+    
+    print(f"🎉 完成！總共新增了 {len(events_to_add)} 個事件")
 else:
-    print("❌ 找不到日曆")
+    print("❌ 沒有事件需要新增")
