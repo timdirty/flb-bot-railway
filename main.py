@@ -256,66 +256,39 @@ def upload_weekly_calendar_to_sheet():
                                         if end_dt.tzinfo is None:
                                             end_dt = tz.localize(end_dt)
                                     
-                                    # 從描述中提取講師資訊
+                                    # 統一使用行事曆名稱來判定講師（不管描述有或沒有）
                                     teacher_name = "未知老師"
-                                    if description:
-                                        teacher_match = re.search(r'師:\s*([^(]+)', description)
-                                        if teacher_match:
-                                            raw_teacher_name = teacher_match.group(1).strip()
-                                            
-                                            # 特殊名稱映射
-                                            special_mappings = {
-                                                "紫米": "Agnes",
-                                                "紫米 ": "Agnes",
-                                                "紫米  ": "Agnes"
-                                            }
-                                            
-                                            # 檢查特殊映射
-                                            if raw_teacher_name in special_mappings:
-                                                teacher_name = special_mappings[raw_teacher_name]
-                                                print(f"✅ 描述中特殊映射成功: {raw_teacher_name} -> {teacher_name}")
-                                            else:
-                                                match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
-                                                if match_result:
-                                                    teacher_name = match_result[0]
-                                                else:
-                                                    teacher_name = raw_teacher_name
-                                        else:
-                                            print(f"🔍 描述中沒有找到講師資訊: {description}")
+                                    print(f"🔍 使用行事曆名稱模糊比對講師: {calendar.name}")
                                     
-                                    # 如果描述中沒有找到講師資訊，嘗試從行事曆名稱中模糊比對
+                                    # 特殊名稱映射（僅處理特殊情況）
+                                    special_mappings = {
+                                        "紫米": "Agnes",
+                                        "紫米 ": "Agnes",
+                                        "紫米  ": "Agnes"
+                                    }
+                                    
+                                    # 檢查特殊映射
+                                    print(f"🔍 檢查特殊映射，calendar.name: '{calendar.name}'")
+                                    for special_name, mapped_name in special_mappings.items():
+                                        if special_name in calendar.name:
+                                            teacher_name = mapped_name
+                                            print(f"✅ 特殊映射成功: {special_name} -> {teacher_name}")
+                                            break
+                                        else:
+                                            print(f"❌ 特殊映射檢查: '{special_name}' 不在 '{calendar.name}' 中")
+                                    
+                                    # 如果沒有特殊映射，直接進行模糊匹配
                                     if teacher_name == "未知老師":
-                                        print(f"🔍 嘗試從行事曆名稱模糊比對講師: {calendar.name}")
-                                        
-                                        # 特殊名稱映射（僅處理特殊情況）
-                                        special_mappings = {
-                                            "紫米": "Agnes",
-                                            "紫米 ": "Agnes",
-                                            "紫米  ": "Agnes"
-                                        }
-                                        
-                                        # 檢查特殊映射
-                                        print(f"🔍 檢查特殊映射，calendar.name: '{calendar.name}'")
-                                        for special_name, mapped_name in special_mappings.items():
-                                            if special_name in calendar.name:
-                                                teacher_name = mapped_name
-                                                print(f"✅ 特殊映射成功: {special_name} -> {teacher_name}")
-                                                break
-                                            else:
-                                                print(f"❌ 特殊映射檢查: '{special_name}' 不在 '{calendar.name}' 中")
-                                        
-                                        # 如果沒有特殊映射，直接進行模糊匹配
-                                        if teacher_name == "未知老師":
-                                            # 降低匹配閾值，提高匹配成功率
-                                            match_result = teacher_manager.fuzzy_match_teacher(calendar.name, threshold=0.3)
-                                            if match_result:
-                                                teacher_name = match_result[0]
-                                                print(f"✅ 模糊匹配成功: {calendar.name} -> {teacher_name}")
-                                            else:
-                                                print(f"❌ 無法從行事曆名稱匹配講師: {calendar.name}")
-                                                # 顯示可用的講師列表用於調試
-                                                teacher_data = teacher_manager.get_teacher_data()
-                                                print(f"🔍 可用的講師: {list(teacher_data.keys())}")
+                                        # 降低匹配閾值，提高匹配成功率
+                                        match_result = teacher_manager.fuzzy_match_teacher(calendar.name, threshold=0.3)
+                                        if match_result:
+                                            teacher_name = match_result[0]
+                                            print(f"✅ 模糊匹配成功: {calendar.name} -> {teacher_name}")
+                                        else:
+                                            print(f"❌ 無法從行事曆名稱匹配講師: {calendar.name}")
+                                            # 顯示可用的講師列表用於調試
+                                            teacher_data = teacher_manager.get_teacher_data()
+                                            print(f"🔍 可用的講師: {list(teacher_data.keys())}")
                                     
                                     # 解析課程資訊
                                     course_type = "未知課程"
