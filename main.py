@@ -262,25 +262,74 @@ def upload_weekly_calendar_to_sheet():
                                         teacher_match = re.search(r'師:\s*([^(]+)', description)
                                         if teacher_match:
                                             raw_teacher_name = teacher_match.group(1).strip()
-                                            match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
-                                            if match_result:
-                                                teacher_name = match_result[0]
+                                            
+                                            # 特殊名稱映射
+                                            special_mappings = {
+                                                "紫米": "Agnes",
+                                                "紫米 ": "Agnes",
+                                                "紫米  ": "Agnes"
+                                            }
+                                            
+                                            # 檢查特殊映射
+                                            if raw_teacher_name in special_mappings:
+                                                teacher_name = special_mappings[raw_teacher_name]
+                                                print(f"✅ 描述中特殊映射成功: {raw_teacher_name} -> {teacher_name}")
                                             else:
-                                                teacher_name = raw_teacher_name
+                                                match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
+                                                if match_result:
+                                                    teacher_name = match_result[0]
+                                                else:
+                                                    teacher_name = raw_teacher_name
                                     
                                     # 如果描述中沒有找到講師資訊，嘗試從行事曆名稱中模糊比對
                                     if teacher_name == "未知老師":
                                         print(f"🔍 嘗試從行事曆名稱模糊比對講師: {summary}")
-                                        # 降低匹配閾值，提高匹配成功率
-                                        match_result = teacher_manager.fuzzy_match_teacher(summary, threshold=0.3)
-                                        if match_result:
-                                            teacher_name = match_result[0]
-                                            print(f"✅ 找到匹配講師: {teacher_name}")
-                                        else:
-                                            print(f"❌ 無法從行事曆名稱匹配講師: {summary}")
-                                            # 顯示可用的講師列表用於調試
-                                            teacher_data = teacher_manager.get_teacher_data()
-                                            print(f"🔍 可用的講師: {list(teacher_data.keys())}")
+                                        
+                                        # 特殊名稱映射
+                                        special_mappings = {
+                                            "紫米": "Agnes",
+                                            "紫米 ": "Agnes",
+                                            "紫米  ": "Agnes"
+                                        }
+                                        
+                                        # 課程代碼到講師的映射（基於歷史數據）
+                                        course_teacher_mappings = {
+                                            "ESM": "Tim",
+                                            "SPM": "Eason", 
+                                            "SPIKE": "Tim",
+                                            "BOOST": "Hansen"
+                                        }
+                                        
+                                        # 檢查特殊映射
+                                        print(f"🔍 檢查特殊映射，summary: '{summary}'")
+                                        for special_name, mapped_name in special_mappings.items():
+                                            if special_name in summary:
+                                                teacher_name = mapped_name
+                                                print(f"✅ 特殊映射成功: {special_name} -> {teacher_name}")
+                                                break
+                                            else:
+                                                print(f"❌ 特殊映射檢查: '{special_name}' 不在 '{summary}' 中")
+                                        
+                                        # 檢查課程代碼映射
+                                        if teacher_name == "未知老師":
+                                            for course_code, mapped_teacher in course_teacher_mappings.items():
+                                                if course_code in summary:
+                                                    teacher_name = mapped_teacher
+                                                    print(f"✅ 課程代碼映射成功: {course_code} -> {teacher_name}")
+                                                    break
+                                        
+                                        # 如果沒有特殊映射，嘗試模糊匹配
+                                        if teacher_name == "未知老師":
+                                            # 降低匹配閾值，提高匹配成功率
+                                            match_result = teacher_manager.fuzzy_match_teacher(summary, threshold=0.3)
+                                            if match_result:
+                                                teacher_name = match_result[0]
+                                                print(f"✅ 找到匹配講師: {teacher_name}")
+                                            else:
+                                                print(f"❌ 無法從行事曆名稱匹配講師: {summary}")
+                                                # 顯示可用的講師列表用於調試
+                                                teacher_data = teacher_manager.get_teacher_data()
+                                                print(f"🔍 可用的講師: {list(teacher_data.keys())}")
                                     
                                     # 解析課程資訊
                                     course_type = "未知課程"
