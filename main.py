@@ -175,7 +175,9 @@ def upload_weekly_calendar_to_sheet():
         
         from teacher_data_manager import get_teacher_manager
         teacher_manager = get_teacher_manager()
-        print(f"👨‍🏫 講師管理器載入完成")
+        teacher_data = teacher_manager.get_teacher_data()
+        print(f"👨‍🏫 講師管理器載入完成，共 {len(teacher_data)} 位講師")
+        print(f"📋 講師列表: {list(teacher_data.keys())}")
         calendar_items = []  # 收集所有行事曆項目
         
         for calendar in calendars:
@@ -269,12 +271,16 @@ def upload_weekly_calendar_to_sheet():
                                     # 如果描述中沒有找到講師資訊，嘗試從行事曆名稱中模糊比對
                                     if teacher_name == "未知老師":
                                         print(f"🔍 嘗試從行事曆名稱模糊比對講師: {summary}")
-                                        match_result = teacher_manager.fuzzy_match_teacher(summary)
+                                        # 降低匹配閾值，提高匹配成功率
+                                        match_result = teacher_manager.fuzzy_match_teacher(summary, threshold=0.3)
                                         if match_result:
                                             teacher_name = match_result[0]
                                             print(f"✅ 找到匹配講師: {teacher_name}")
                                         else:
                                             print(f"❌ 無法從行事曆名稱匹配講師: {summary}")
+                                            # 顯示可用的講師列表用於調試
+                                            teacher_data = teacher_manager.get_teacher_data()
+                                            print(f"🔍 可用的講師: {list(teacher_data.keys())}")
                                     
                                     # 解析課程資訊
                                     course_type = "未知課程"
