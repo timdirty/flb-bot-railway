@@ -280,6 +280,8 @@ def upload_weekly_calendar_to_sheet():
                                                     teacher_name = match_result[0]
                                                 else:
                                                     teacher_name = raw_teacher_name
+                                        else:
+                                            print(f"🔍 描述中沒有找到講師資訊: {description}")
                                     
                                     # 如果描述中沒有找到講師資訊，嘗試從行事曆名稱中模糊比對
                                     if teacher_name == "未知老師":
