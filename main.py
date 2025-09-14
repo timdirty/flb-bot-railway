@@ -153,12 +153,16 @@ def upload_weekly_calendar_to_sheet():
         week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
         
         print(f"📅 上傳當週行事曆: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}")
+        print(f"🔗 CalDAV URL: {caldav_url}")
+        print(f"👤 用戶名: {username}")
         
         # 嘗試連接到 CalDAV
         try:
+            print("🔄 正在連接到 CalDAV...")
             client = DAVClient(caldav_url, username=username, password=password)
             principal = client.principal()
             calendars = principal.calendars()
+            print(f"✅ CalDAV 連線成功！找到 {len(calendars)} 個行事曆")
         except Exception as e:
             print(f"❌ CalDAV 連線失敗: {e}")
             # 發送錯誤通知
@@ -171,16 +175,19 @@ def upload_weekly_calendar_to_sheet():
         
         from teacher_data_manager import get_teacher_manager
         teacher_manager = get_teacher_manager()
+        print(f"👨‍🏫 講師管理器載入完成")
         calendar_items = []  # 收集所有行事曆項目
         
         for calendar in calendars:
             try:
+                print(f"📅 正在處理行事曆: {calendar.name}")
                 events = calendar.search(
                     start=week_start,
                     end=week_end,
                     event=True,
                     expand=True
                 )
+                print(f"📝 找到 {len(events)} 個事件")
                 
                 for event in events:
                     try:
