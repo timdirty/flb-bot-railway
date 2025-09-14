@@ -290,6 +290,12 @@ def upload_weekly_calendar_to_sheet():
                                             teacher_data = teacher_manager.get_teacher_data()
                                             print(f"🔍 可用的講師: {list(teacher_data.keys())}")
                                     
+                                    # 清理講師名稱，移除特殊字符以符合 Google Sheets 驗證規則
+                                    original_teacher_name = teacher_name
+                                    teacher_name = re.sub(r'[^\w\s]', '', teacher_name).strip()
+                                    if teacher_name != original_teacher_name:
+                                        print(f"🧹 清理講師名稱: {original_teacher_name} -> {teacher_name}")
+                                    
                                     # 解析課程資訊
                                     course_type = "未知課程"
                                     note1 = ""
@@ -413,24 +419,34 @@ def upload_weekly_calendar_to_sheet():
                 response = requests.request("POST", url, headers=headers, data=payload, timeout=30)
                 
                 if response.status_code == 200:
-                    result = response.json()
-                    if result.get('success'):
-                        uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
-                        print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
-                        
-                        # 發送成功通知
-                        admin_message = f"📊 當週行事曆上傳完成\n\n"
-                        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
-                        admin_message += f"📈 總項目數: {len(calendar_items)}\n"
-                        admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
-                        admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
-                        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                        send_admin_notification(admin_message, "system")
-                    else:
-                        print(f"❌ 批量上傳失敗: {result.get('message', '未知錯誤')}")
+                    try:
+                        result = response.json()
+                        if result.get('success'):
+                            uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
+                            print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
+                            
+                            # 發送成功通知
+                            admin_message = f"📊 當週行事曆上傳完成\n\n"
+                            admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+                            admin_message += f"📈 總項目數: {len(calendar_items)}\n"
+                            admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
+                            admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
+                            admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                            send_admin_notification(admin_message, "system")
+                        else:
+                            print(f"❌ 批量上傳失敗: {result.get('message', '未知錯誤')}")
+                            # 發送失敗通知
+                            error_message = f"❌ 批量上傳失敗\n\n"
+                            error_message += f"❌ 錯誤: {result.get('message', '未知錯誤')}\n"
+                            error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                            send_admin_notification(error_message, "error_notifications")
+                    except json.JSONDecodeError as e:
+                        print(f"❌ JSON 解析失敗: {e}")
+                        print(f"📄 原始響應: {response.text}")
                         # 發送失敗通知
-                        error_message = f"❌ 批量上傳失敗\n\n"
-                        error_message += f"❌ 錯誤: {result.get('message', '未知錯誤')}\n"
+                        error_message = f"❌ JSON 解析失敗\n\n"
+                        error_message += f"❌ 錯誤: {str(e)}\n"
+                        error_message += f"📄 原始響應: {response.text[:200]}...\n"
                         error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
                         send_admin_notification(error_message, "error_notifications")
                 else:
