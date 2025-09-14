@@ -159,12 +159,13 @@ END:VCALENDAR
 
 print(f"📊 總共收集到 {len(events_to_add)} 個事件需要處理")
 
-# 清理舊的 Notion 事件（只清理與新事件重複的）
+# 清理重複的 Notion 同步事件
 print("🧹 開始清理重複的 Notion 同步事件...")
 events_to_remove = set()  # 儲存需要刪除的事件
+processed_count = 0
 
 # 先收集需要刪除的事件
-for event_info in events_to_add:
+for i, event_info in enumerate(events_to_add):
     calendar_name = event_info['calendar_name']
     event_title = event_info['event_title']
     class_id = event_info['class_id']
@@ -183,20 +184,30 @@ for event_info in events_to_add:
                         f"{event_title} 第{class_id}週" in event_data):
                         events_to_remove.add(event)
                         break
-                except:
+                except Exception as e:
+                    print(f"⚠️ 讀取事件資料失敗: {e}")
                     continue
         except Exception as e:
             print(f"⚠️ 檢查事件失敗 ({calendar_name}): {e}")
+    
+    processed_count += 1
+    if processed_count % 50 == 0:
+        print(f"📊 已處理 {processed_count}/{len(events_to_add)} 個事件...")
+
+print(f"📊 找到 {len(events_to_remove)} 個重複事件需要刪除")
 
 # 刪除重複的事件
+deleted_count = 0
 for event in events_to_remove:
     try:
         event.delete()
-        print(f"🗑️ 刪除重複的 Notion 同步事件")
+        deleted_count += 1
+        if deleted_count % 10 == 0:
+            print(f"🗑️ 已刪除 {deleted_count}/{len(events_to_remove)} 個重複事件...")
     except Exception as e:
         print(f"⚠️ 刪除事件失敗: {e}")
 
-print(f"🎉 清理完成！刪除了 {len(events_to_remove)} 個重複事件\n")
+print(f"🎉 清理完成！刪除了 {deleted_count} 個重複事件\n")
 
 # 新增收集到的事件
 if events_to_add:
