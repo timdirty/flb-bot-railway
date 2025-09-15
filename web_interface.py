@@ -1713,22 +1713,69 @@ def api_upload_weekly_calendar():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/trigger_tasks', methods=['GET'])
+def api_trigger_tasks():
+    """觸發所有定時任務（與 main.py 中的端點一致）"""
+    try:
+        from main import check_upcoming_courses, upload_weekly_calendar_to_sheet
+        
+        # 執行所有定時任務
+        check_upcoming_courses()
+        upload_weekly_calendar_to_sheet()
+        
+        return jsonify({
+            "success": True,
+            "message": "所有定時任務觸發成功",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False, 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/trigger_course_check', methods=['GET'])
+def api_trigger_course_check():
+    """觸發課程檢查（與 main.py 中的端點一致）"""
+    try:
+        from main import check_upcoming_courses
+        
+        # 執行課程檢查
+        check_upcoming_courses()
+        
+        return jsonify({
+            "success": True,
+            "message": "課程檢查觸發成功",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False, 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 @app.route('/api/trigger_calendar_upload', methods=['GET'])
 def api_trigger_calendar_upload():
     """觸發行事曆上傳（與 main.py 中的端點一致）"""
     try:
-        from main import trigger_calendar_upload
+        from main import upload_weekly_calendar_to_sheet
         
         # 執行觸發行事曆上傳
-        result = trigger_calendar_upload()
+        upload_weekly_calendar_to_sheet()
         
         return jsonify({
             "success": True,
             "message": "行事曆上傳觸發成功",
-            "data": result
+            "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False, 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 def start_scheduler():
     """啟動定時任務"""
