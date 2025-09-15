@@ -56,9 +56,12 @@ class TeacherManager:
                 for teacher in data["teachers"]:
                     name = teacher.get("name", "").strip()
                     user_id = teacher.get("userId", "").strip()
-                    if name and user_id:  # 只包含有 user_id 的老師
+                    if name:  # 包含所有有名稱的老師，即使沒有 user_id
                         # 清理名稱（移除表情符號等）
                         clean_name = re.sub(r'[^\w\s\u4e00-\u9fff]', '', name).strip().upper()
+                        # 如果沒有 user_id，使用名稱作為 user_id
+                        if not user_id:
+                            user_id = clean_name
                         teacher_data[clean_name] = user_id
                 
                 self.teacher_cache = teacher_data
