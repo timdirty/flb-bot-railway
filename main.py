@@ -268,12 +268,7 @@ def upload_weekly_calendar_to_sheet():
                                     special_mappings = {
                                         "紫米": "Agnes",
                                         "紫米 ": "Agnes",
-                                        "紫米  ": "Agnes",
-                                        "My Calendar": "未知老師",
-                                        "Inbox": "未知老師",
-                                        "庭嘉": "未知老師",
-                                        "庭豪爸": "未知老師",
-                                        "FLB 體驗": "未知老師"
+                                        "紫米  ": "Agnes"
                                     }
                                     
                                     # 檢查特殊映射

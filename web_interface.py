@@ -1698,14 +1698,15 @@ def api_upload_weekly_calendar():
 def api_trigger_calendar_upload():
     """觸發行事曆上傳（與 main.py 中的端點一致）"""
     try:
-        from main_fixed import upload_weekly_calendar_to_sheet
+        from main import trigger_calendar_upload
         
-        # 執行行事曆上傳
-        upload_weekly_calendar_to_sheet()
+        # 執行觸發行事曆上傳
+        result = trigger_calendar_upload()
         
         return jsonify({
             "success": True,
-            "message": "行事曆上傳觸發成功"
+            "message": "行事曆上傳觸發成功",
+            "data": result
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
