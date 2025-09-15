@@ -16,6 +16,15 @@ from linebot.v3.messaging import (
     QuickReply,
     QuickReplyItem,
     MessageAction,
+    ReplyMessageRequest,
+)
+from linebot.v3.webhooks import (
+    WebhookParser,
+    WebhookHandler,
+    WebhookEvent,
+    MessageEvent,
+    TextMessage as WebhookTextMessage,
+    PostbackEvent,
 )
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
@@ -496,6 +505,11 @@ access_token = os.environ.get("LINE_ACCESS_TOKEN", "LaeRrV+/XZ6oCJ2ZFzAFlZXHX822
 line_configuration = Configuration(access_token=access_token)
 api_client = ApiClient(line_configuration)
 messaging_api = MessagingApi(api_client)
+
+# LINE Bot Webhook 設定
+channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "your_channel_secret")
+webhook_handler = WebhookHandler(channel_secret)
+parser = WebhookParser(channel_secret)
 
 # 老師管理器
 try:
@@ -1128,6 +1142,202 @@ def trigger_calendar_upload():
             "message": f"觸發行事曆上傳失敗: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """LINE Bot Webhook 端點"""
+    try:
+        # 獲取請求標頭
+        signature = request.headers.get('X-Line-Signature')
+        body = request.get_data(as_text=True)
+        
+        # 驗證 webhook 簽名
+        try:
+            events = parser.parse(body, signature)
+        except Exception as e:
+            print(f"❌ Webhook 簽名驗證失敗: {e}")
+            return 'Bad Request', 400
+        
+        # 處理事件
+        for event in events:
+            if isinstance(event, MessageEvent):
+                handle_message_event(event)
+            elif isinstance(event, PostbackEvent):
+                handle_postback_event(event)
+        
+        return 'OK'
+    except Exception as e:
+        print(f"❌ Webhook 處理失敗: {e}")
+        return 'Internal Server Error', 500
+
+def handle_message_event(event):
+    """處理文字訊息事件"""
+    try:
+        user_id = event.source.user_id
+        message_text = event.message.text
+        
+        print(f"📱 收到訊息來自 {user_id}: {message_text}")
+        
+        # 檢查是否為管理員
+        if not is_admin_user(user_id):
+            print(f"❌ 非管理員用戶 {user_id} 嘗試使用 Bot")
+            return
+        
+        # 處理管理員指令
+        if message_text == "行事曆上傳":
+            handle_calendar_upload_request(user_id, event.reply_token)
+        elif message_text == "快捷選單":
+            send_quick_reply_menu(user_id)
+        elif message_text == "系統狀態":
+            send_system_status(user_id)
+        else:
+            # 預設回應：顯示快捷選單
+            send_quick_reply_menu(user_id)
+            
+    except Exception as e:
+        print(f"❌ 處理訊息事件失敗: {e}")
+
+def handle_postback_event(event):
+    """處理 Postback 事件（快捷回覆按鈕）"""
+    try:
+        user_id = event.source.user_id
+        postback_data = event.postback.data
+        
+        print(f"📱 收到 Postback 來自 {user_id}: {postback_data}")
+        
+        # 檢查是否為管理員
+        if not is_admin_user(user_id):
+            print(f"❌ 非管理員用戶 {user_id} 嘗試使用 Bot")
+            return
+        
+        # 處理 Postback 動作
+        if postback_data == "calendar_upload":
+            handle_calendar_upload_request(user_id)
+        elif postback_data == "system_status":
+            send_system_status(user_id)
+        elif postback_data == "quick_menu":
+            send_quick_reply_menu(user_id)
+            
+    except Exception as e:
+        print(f"❌ 處理 Postback 事件失敗: {e}")
+
+def is_admin_user(user_id):
+    """檢查是否為管理員用戶"""
+    try:
+        admin_config = load_admin_config()
+        admins = admin_config.get("admins", [])
+        
+        for admin in admins:
+            if admin.get("admin_user_id") == user_id:
+                return True
+        return False
+    except Exception as e:
+        print(f"❌ 檢查管理員身份失敗: {e}")
+        return False
+
+def handle_calendar_upload_request(user_id, reply_token=None):
+    """處理行事曆上傳請求"""
+    try:
+        print(f"📊 管理員 {user_id} 請求行事曆上傳")
+        
+        # 發送處理中訊息
+        processing_message = TextMessage(text="🔄 正在上傳行事曆，請稍候...")
+        if reply_token:
+            messaging_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=reply_token,
+                    messages=[processing_message]
+                )
+            )
+        else:
+            messaging_api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[processing_message]
+                )
+            )
+        
+        # 執行行事曆上傳
+        upload_weekly_calendar_to_sheet()
+        
+        # 發送完成訊息
+        success_message = TextMessage(text="✅ 行事曆上傳完成！")
+        messaging_api.push_message(
+            PushMessageRequest(
+                to=user_id,
+                messages=[success_message]
+            )
+        )
+        
+        # 再次顯示快捷選單
+        send_quick_reply_menu(user_id)
+        
+    except Exception as e:
+        print(f"❌ 處理行事曆上傳請求失敗: {e}")
+        error_message = TextMessage(text=f"❌ 行事曆上傳失敗: {str(e)}")
+        messaging_api.push_message(
+            PushMessageRequest(
+                to=user_id,
+                messages=[error_message]
+            )
+        )
+
+def send_quick_reply_menu(user_id):
+    """發送快捷回覆選單"""
+    try:
+        quick_reply_items = [
+            QuickReplyItem(
+                action=MessageAction(label="📅 行事曆上傳", text="行事曆上傳")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="📊 系統狀態", text="系統狀態")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="🔄 重新整理", text="快捷選單")
+            )
+        ]
+        
+        quick_reply = QuickReply(items=quick_reply_items)
+        
+        menu_message = TextMessage(
+            text="🎛️ 管理員快捷選單\n\n請選擇要執行的操作：",
+            quick_reply=quick_reply
+        )
+        
+        messaging_api.push_message(
+            PushMessageRequest(
+                to=user_id,
+                messages=[menu_message]
+            )
+        )
+        
+    except Exception as e:
+        print(f"❌ 發送快捷選單失敗: {e}")
+
+def send_system_status(user_id):
+    """發送系統狀態"""
+    try:
+        now = datetime.now(tz)
+        
+        status_message = f"📊 系統狀態報告\n\n"
+        status_message += f"⏰ 時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        status_message += f"🌐 環境: Railway 部署\n"
+        status_message += f"🔗 API 端點: 正常\n"
+        status_message += f"📅 行事曆: 已連接\n"
+        status_message += f"👨‍🏫 講師管理: 正常\n"
+        
+        messaging_api.push_message(
+            PushMessageRequest(
+                to=user_id,
+                messages=[TextMessage(text=status_message)]
+            )
+        )
+        
+        # 再次顯示快捷選單
+        send_quick_reply_menu(user_id)
+        
+    except Exception as e:
+        print(f"❌ 發送系統狀態失敗: {e}")
 
 # 注意：內部定時任務已移除，現在完全依賴 Uptime Robot 觸發 API 端點
 
