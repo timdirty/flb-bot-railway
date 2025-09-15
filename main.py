@@ -19,13 +19,13 @@ from linebot.v3.messaging import (
     MessageAction,
 )
 from linebot.v3.webhooks import (
-    WebhookParser,
     WebhookHandler,
     WebhookEvent,
     MessageEvent,
     TextMessage as WebhookTextMessage,
     PostbackEvent,
 )
+from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
 import os
@@ -509,7 +509,6 @@ messaging_api = MessagingApi(api_client)
 # LINE Bot Webhook 設定
 channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "your_channel_secret")
 webhook_handler = WebhookHandler(channel_secret)
-parser = WebhookParser(channel_secret)
 
 # 老師管理器
 try:
@@ -1087,8 +1086,8 @@ def webhook():
         
         # 驗證 webhook 簽名
         try:
-            events = parser.parse(body, signature)
-        except Exception as e:
+            events = webhook_handler.handle(body, signature)
+        except InvalidSignatureError as e:
             print(f"❌ Webhook 簽名驗證失敗: {e}")
             return 'Bad Request', 400
         
