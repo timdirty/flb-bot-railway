@@ -691,20 +691,60 @@ def check_tomorrow_courses_new():
         # 按開始時間排序
         tomorrow_courses.sort(key=lambda x: x['start_time'])
         
-        # 構建提醒訊息
+        # 構建管理員的完整提醒訊息
         if tomorrow_courses:
-            message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 共 {len(tomorrow_courses)} 堂課\n\n"
+            admin_message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 共 {len(tomorrow_courses)} 堂課\n\n"
             
             for i, course in enumerate(tomorrow_courses, 1):
-                message += f"{i}. {course['course_type']} - {course['teacher']}\n"
-                message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
+                admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
+                admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
                 if course['location']:
-                    message += f"   📍 {course['location']}\n"
-                message += f"   📝 {course['summary']}\n\n"
+                    admin_message += f"   📍 {course['location']}\n"
+                admin_message += f"   📝 {course['summary']}\n\n"
         else:
-            message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 明天沒有安排課程"
+            admin_message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 明天沒有安排課程"
         
-        # 發送給所有管理員
+        # 按講師分組課程
+        teacher_courses = {}
+        for course in tomorrow_courses:
+            teacher_name = course['teacher']
+            if teacher_name not in teacher_courses:
+                teacher_courses[teacher_name] = []
+            teacher_courses[teacher_name].append(course)
+        
+        # 發送個人化提醒給每位講師
+        teacher_manager = TeacherManager()
+        for teacher_name, courses in teacher_courses.items():
+            try:
+                # 獲取講師的 user_id
+                teacher_user_id = teacher_manager.get_teacher_user_id(teacher_name)
+                
+                if teacher_user_id:
+                    # 構建個人化訊息
+                    personal_message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n👨‍🏫 講師: {teacher_name}\n📚 共 {len(courses)} 堂課\n\n"
+                    
+                    for i, course in enumerate(courses, 1):
+                        personal_message += f"{i}. {course['course_type']}\n"
+                        personal_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
+                        if course['location']:
+                            personal_message += f"   📍 {course['location']}\n"
+                        personal_message += f"   📝 {course['summary']}\n\n"
+                    
+                    # 發送給講師
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=teacher_user_id,
+                            messages=[TextMessage(text=personal_message)]
+                        )
+                    )
+                    print(f"✅ 已發送隔天提醒給講師 {teacher_name} ({teacher_user_id})")
+                else:
+                    print(f"⚠️ 找不到講師 {teacher_name} 的 user_id")
+                    
+            except Exception as e:
+                print(f"❌ 發送隔天提醒給講師 {teacher_name} 失敗: {e}")
+        
+        # 發送完整提醒給所有管理員
         for admin in admins:
             try:
                 admin_user_id = admin.get("admin_user_id")
@@ -712,7 +752,7 @@ def check_tomorrow_courses_new():
                     messaging_api.push_message(
                         PushMessageRequest(
                             to=admin_user_id,
-                            messages=[TextMessage(text=message)]
+                            messages=[TextMessage(text=admin_message)]
                         )
                     )
                     print(f"✅ 已發送隔天提醒給 {admin.get('admin_name', '未知')}")
