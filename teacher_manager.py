@@ -23,17 +23,14 @@ class TeacherManager:
         從 Google Sheets 獲取老師資料
         
         Args:
-            force_refresh: 是否強制重新整理快取
+            force_refresh: 是否強制重新整理快取（現在預設為 True，每次都更新）
             
         Returns:
             Dict[str, str]: {老師名稱: user_id} 的字典
         """
-        # 檢查快取是否有效（每 5 分鐘更新一次）
+        # 每次都從 API 更新講師資料，確保使用最新資料
+        print("🔄 從 API 更新講師資料...")
         now = datetime.now()
-        if (not force_refresh and 
-            self.last_update and 
-            (now - self.last_update).seconds < 300):
-            return self.teacher_cache
             
         try:
             # 使用新的 API 獲取老師資料
