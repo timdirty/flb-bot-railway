@@ -1831,10 +1831,11 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8081))
     debug = os.environ.get("RAILWAY_ENVIRONMENT") != "true"
     
-    # 在 Railway 環境中啟動定時任務
+    # Railway 環境中不使用內部定時任務，完全依賴 Uptime Robot 觸發
     scheduler = None
-    if os.environ.get("RAILWAY_ENVIRONMENT"):
-        scheduler = start_scheduler()
+    # 註解掉自動啟動定時任務，改為完全依賴 Uptime Robot
+    # if os.environ.get("RAILWAY_ENVIRONMENT"):
+    #     scheduler = start_scheduler()
     
     if debug:
         print(f"📱 請在瀏覽器中開啟: http://localhost:{port}")
