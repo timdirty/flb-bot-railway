@@ -173,13 +173,13 @@ def upload_weekly_calendar_to_sheet():
             send_admin_notification(error_message, "error_notifications")
             return
         
-        from teacher_data_manager import get_teacher_manager
-        teacher_manager = get_teacher_manager()
+        # 使用與測試每日摘要相同的 TeacherManager
+        from teacher_manager import TeacherManager
+        teacher_manager = TeacherManager()
         
         # 強制更新講師資料，確保使用最新資料
         print("🔄 強制更新講師資料...")
-        teacher_manager.update_teacher_data(force=True)
-        teacher_data = teacher_manager.get_teacher_data()
+        teacher_data = teacher_manager.get_teacher_data(force_refresh=True)
         print(f"👨‍🏫 講師管理器載入完成，共 {len(teacher_data)} 位講師")
         print(f"📋 講師列表: {list(teacher_data.keys())}")
         calendar_items = []  # 收集所有行事曆項目
@@ -283,8 +283,8 @@ def upload_weekly_calendar_to_sheet():
                                     
                                     # 如果沒有特殊映射，直接進行模糊匹配
                                     if teacher_name == "未知老師":
-                                        # 降低匹配閾值，提高匹配成功率
-                                        match_result = teacher_manager.fuzzy_match_teacher(calendar.name, threshold=0.3)
+                                        # 使用與測試每日摘要相同的匹配邏輯
+                                        match_result = teacher_manager.fuzzy_match_teacher(calendar.name, threshold=0.6)
                                         if match_result:
                                             teacher_name = match_result[0]
                                             print(f"✅ 模糊匹配成功: {calendar.name} -> {teacher_name}")
