@@ -6,17 +6,17 @@
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from caldav import DAVClient
-from flask import Flask
+from flask import Flask, request
 from icalendar import Calendar
 from linebot.v3.messaging import (
     MessagingApi,
     PushMessageRequest,
+    ReplyMessageRequest,
     TextMessage,
     FlexMessage,
     QuickReply,
     QuickReplyItem,
     MessageAction,
-    ReplyMessageRequest,
 )
 from linebot.v3.webhooks import (
     WebhookParser,
@@ -1076,73 +1076,7 @@ def start_scheduler():
 # 導入 web_interface 的所有路由
 from web_interface import *
 
-# 保留原有的健康檢查路由
-@app.route('/health')
-def health():
-    """健康檢查"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
-
-@app.route('/api/trigger_tasks')
-def trigger_tasks():
-    """手動觸發定時任務（用於 Railway 環境）"""
-    try:
-        print("🔔 手動觸發定時任務...")
-        
-        # 執行所有定時任務
-        check_upcoming_courses()
-        upload_weekly_calendar_to_sheet()
-        
-        return {
-            "success": True, 
-            "message": "定時任務已執行",
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        print(f"❌ 觸發定時任務失敗: {e}")
-        return {
-            "success": False, 
-            "message": f"觸發定時任務失敗: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.route('/api/trigger_course_check')
-def trigger_course_check():
-    """手動觸發課程檢查"""
-    try:
-        print("🔔 手動觸發課程檢查...")
-        check_upcoming_courses()
-        return {
-            "success": True, 
-            "message": "課程檢查已執行",
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        print(f"❌ 觸發課程檢查失敗: {e}")
-        return {
-            "success": False, 
-            "message": f"觸發課程檢查失敗: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.route('/api/trigger_calendar_upload')
-def trigger_calendar_upload():
-    """手動觸發行事曆上傳"""
-    try:
-        print("📊 手動觸發行事曆上傳...")
-        upload_weekly_calendar_to_sheet()
-        return {
-            "success": True, 
-            "message": "行事曆上傳已執行",
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        print(f"❌ 觸發行事曆上傳失敗: {e}")
-        return {
-            "success": False, 
-            "message": f"觸發行事曆上傳失敗: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        }
-
+# LINE Bot Webhook 處理函數
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """LINE Bot Webhook 端點"""
@@ -1338,6 +1272,73 @@ def send_system_status(user_id):
         
     except Exception as e:
         print(f"❌ 發送系統狀態失敗: {e}")
+
+# 保留原有的健康檢查路由
+@app.route('/health')
+def health():
+    """健康檢查"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.route('/api/trigger_tasks')
+def trigger_tasks():
+    """手動觸發定時任務（用於 Railway 環境）"""
+    try:
+        print("🔔 手動觸發定時任務...")
+        
+        # 執行所有定時任務
+        check_upcoming_courses()
+        upload_weekly_calendar_to_sheet()
+        
+        return {
+            "success": True, 
+            "message": "定時任務已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發定時任務失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發定時任務失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_course_check')
+def trigger_course_check():
+    """手動觸發課程檢查"""
+    try:
+        print("🔔 手動觸發課程檢查...")
+        check_upcoming_courses()
+        return {
+            "success": True, 
+            "message": "課程檢查已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發課程檢查失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發課程檢查失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_calendar_upload')
+def trigger_calendar_upload():
+    """手動觸發行事曆上傳"""
+    try:
+        print("📊 手動觸發行事曆上傳...")
+        upload_weekly_calendar_to_sheet()
+        return {
+            "success": True, 
+            "message": "行事曆上傳已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發行事曆上傳失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發行事曆上傳失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
 
 # 注意：內部定時任務已移除，現在完全依賴 Uptime Robot 觸發 API 端點
 
