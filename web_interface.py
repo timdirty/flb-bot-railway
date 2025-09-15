@@ -1830,9 +1830,10 @@ def start_scheduler():
         scheduler.add_job(check_tomorrow_courses_new, "cron", hour=evening_hour, minute=evening_minute)
         print(f"✅ 已設定每日 {evening_reminder_time} 隔天課程提醒")
         
-        # 定期檢查即將開始的事件
-        scheduler.add_job(check_upcoming_courses, "interval", minutes=check_interval)
-        print(f"✅ 已設定每 {check_interval} 分鐘檢查 {reminder_advance} 分鐘內課程提醒")
+        # 注意：行事曆上傳和課程檢查改由 Uptime Robot 觸發
+        # - /api/trigger_calendar_upload (Uptime Robot 觸發)
+        # - /api/trigger_course_check (Uptime Robot 觸發)
+        print("ℹ️ 行事曆上傳和課程檢查已改為 Uptime Robot 觸發")
         
         scheduler.start()
         print("🎯 定時任務已啟動！")
@@ -1852,11 +1853,10 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8081))
     debug = os.environ.get("RAILWAY_ENVIRONMENT") != "true"
     
-    # Railway 環境中不使用內部定時任務，完全依賴 Uptime Robot 觸發
+    # Railway 環境中啟用部分定時任務（排除行事曆上傳和課程檢查）
     scheduler = None
-    # 註解掉自動啟動定時任務，改為完全依賴 Uptime Robot
-    # if os.environ.get("RAILWAY_ENVIRONMENT"):
-    #     scheduler = start_scheduler()
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        scheduler = start_scheduler()
     
     if debug:
         print(f"📱 請在瀏覽器中開啟: http://localhost:{port}")

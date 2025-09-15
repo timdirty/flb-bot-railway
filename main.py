@@ -1259,13 +1259,10 @@ def start_scheduler():
     scheduler.add_job(check_tomorrow_courses_new, "cron", hour=evening_hour, minute=evening_minute)
     print(f"✅ 已設定每日 {evening_reminder_time} 隔天課程提醒")
     
-    # 定期檢查即將開始的事件
-    scheduler.add_job(check_upcoming_courses, "interval", minutes=check_interval)
-    print(f"✅ 已設定每 {check_interval} 分鐘檢查 {reminder_advance} 分鐘內課程提醒")
-    
-    # 每半小時上傳當週行事曆到 Google Sheet
-    scheduler.add_job(upload_weekly_calendar_to_sheet, "interval", minutes=30)
-    print("✅ 已設定每 30 分鐘上傳當週行事曆到 Google Sheet")
+    # 注意：以下功能改由 Uptime Robot 觸發
+    # - 定期檢查即將開始的事件 (/api/trigger_course_check)
+    # - 上傳當週行事曆到 Google Sheet (/api/trigger_calendar_upload)
+    print("ℹ️ 課程檢查和行事曆上傳已改為 Uptime Robot 觸發")
 
     scheduler.start()
     print("🎯 定時任務已啟動！")
