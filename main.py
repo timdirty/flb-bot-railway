@@ -19,13 +19,13 @@ from linebot.v3.messaging import (
     MessageAction,
 )
 from linebot.v3.webhooks import (
-    WebhookHandler,
     WebhookEvent,
     MessageEvent,
     TextMessage as WebhookTextMessage,
     PostbackEvent,
 )
 from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3 import WebhookHandler
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
 import os
