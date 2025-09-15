@@ -6,26 +6,17 @@
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from caldav import DAVClient
-from flask import Flask, request
+from flask import Flask
 from icalendar import Calendar
 from linebot.v3.messaging import (
     MessagingApi,
     PushMessageRequest,
-    ReplyMessageRequest,
     TextMessage,
     FlexMessage,
     QuickReply,
     QuickReplyItem,
     MessageAction,
 )
-from linebot.v3.webhooks import (
-    WebhookEvent,
-    MessageEvent,
-    TextMessage as WebhookTextMessage,
-    PostbackEvent,
-)
-from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3 import WebhookHandler
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
 import os
@@ -184,6 +175,10 @@ def upload_weekly_calendar_to_sheet():
         
         from teacher_data_manager import get_teacher_manager
         teacher_manager = get_teacher_manager()
+        
+        # 強制更新講師資料，確保使用最新資料
+        print("🔄 強制更新講師資料...")
+        teacher_manager.update_teacher_data(force=True)
         teacher_data = teacher_manager.get_teacher_data()
         print(f"👨‍🏫 講師管理器載入完成，共 {len(teacher_data)} 位講師")
         print(f"📋 講師列表: {list(teacher_data.keys())}")
@@ -265,9 +260,9 @@ def upload_weekly_calendar_to_sheet():
                                         if end_dt.tzinfo is None:
                                             end_dt = tz.localize(end_dt)
                                     
-                                    # 完全忽略描述，直接根據行事曆名稱來判定講師
+                                    # 統一使用行事曆名稱來判定講師（不管描述有或沒有）
                                     teacher_name = "未知老師"
-                                    print(f"🔍 直接使用行事曆名稱模糊比對講師: {calendar.name}")
+                                    print(f"🔍 使用行事曆名稱模糊比對講師: {calendar.name}")
                                     
                                     # 特殊名稱映射（僅處理特殊情況）
                                     special_mappings = {
@@ -506,10 +501,6 @@ line_configuration = Configuration(access_token=access_token)
 api_client = ApiClient(line_configuration)
 messaging_api = MessagingApi(api_client)
 
-# LINE Bot Webhook 設定
-channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "your_channel_secret")
-webhook_handler = WebhookHandler(channel_secret)
-
 # 老師管理器
 try:
     teacher_manager = TeacherManager()
@@ -662,6 +653,11 @@ def check_upcoming_courses():
     """
     檢查即將開始的課程並發送提醒（時間間隔由系統設定決定）
     """
+    # 強制更新講師資料，確保使用最新資料
+    if teacher_manager:
+        print("🔄 強制更新講師資料...")
+        teacher_manager.get_teacher_data(force_refresh=True)
+    
     # 載入系統設定
     system_config = load_system_config()
     reminder_advance = system_config.get('scheduler_settings', {}).get('reminder_advance_minutes', 30)
@@ -792,19 +788,28 @@ def check_upcoming_courses():
                         
                         # 只處理設定時間內即將開始的課程
                         if 1 <= time_diff <= reminder_advance:
-                            # 完全忽略描述，直接根據行事曆名稱來判定講師
+                            # 從描述中提取老師資訊並進行模糊比對
                             teacher_name = "未知老師"
                             teacher_user_id = None
                             
-                            # 直接使用行事曆名稱進行模糊匹配
-                            if calendar.name:
+                            # 首先嘗試從描述中解析老師資訊
+                            if description:
+                                parsed_info = teacher_manager.parse_calendar_description(description)
+                                if parsed_info.get("teachers"):
+                                    raw_teacher_name = parsed_info["teachers"][0]
+                                    match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
+                                    if match_result:
+                                        teacher_name = match_result[0]
+                                        teacher_user_id = match_result[1]
+                                    else:
+                                        teacher_name = raw_teacher_name
+                            
+                            # 如果描述中沒有老師資訊，嘗試從行事曆名稱推斷
+                            if teacher_name == "未知老師" and calendar.name:
                                 match_result = teacher_manager.fuzzy_match_teacher(calendar.name)
                                 if match_result:
                                     teacher_name = match_result[0]
                                     teacher_user_id = match_result[1]
-                                    print(f"✅ 從行事曆名稱匹配講師: {calendar.name} -> {teacher_name}")
-                                else:
-                                    print(f"❌ 無法從行事曆名稱匹配講師: {calendar.name}")
                             
                             # 提取教案連結
                             lesson_plan_url = extract_lesson_plan_url(description)
@@ -1074,203 +1079,6 @@ def start_scheduler():
 
 # 導入 web_interface 的所有路由
 from web_interface import *
-
-# LINE Bot Webhook 處理函數
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """LINE Bot Webhook 端點"""
-    try:
-        # 獲取請求標頭
-        signature = request.headers.get('X-Line-Signature')
-        body = request.get_data(as_text=True)
-        
-        # 驗證 webhook 簽名
-        try:
-            events = webhook_handler.handle(body, signature)
-        except InvalidSignatureError as e:
-            print(f"❌ Webhook 簽名驗證失敗: {e}")
-            return 'Bad Request', 400
-        
-        # 處理事件
-        for event in events:
-            if isinstance(event, MessageEvent):
-                handle_message_event(event)
-            elif isinstance(event, PostbackEvent):
-                handle_postback_event(event)
-        
-        return 'OK'
-    except Exception as e:
-        print(f"❌ Webhook 處理失敗: {e}")
-        return 'Internal Server Error', 500
-
-def handle_message_event(event):
-    """處理文字訊息事件"""
-    try:
-        user_id = event.source.user_id
-        message_text = event.message.text
-        
-        print(f"📱 收到訊息來自 {user_id}: {message_text}")
-        
-        # 檢查是否為管理員
-        if not is_admin_user(user_id):
-            print(f"❌ 非管理員用戶 {user_id} 嘗試使用 Bot")
-            return
-        
-        # 處理管理員指令
-        if message_text == "行事曆上傳":
-            handle_calendar_upload_request(user_id, event.reply_token)
-        elif message_text == "快捷選單":
-            send_quick_reply_menu(user_id)
-        elif message_text == "系統狀態":
-            send_system_status(user_id)
-        else:
-            # 預設回應：顯示快捷選單
-            send_quick_reply_menu(user_id)
-            
-    except Exception as e:
-        print(f"❌ 處理訊息事件失敗: {e}")
-
-def handle_postback_event(event):
-    """處理 Postback 事件（快捷回覆按鈕）"""
-    try:
-        user_id = event.source.user_id
-        postback_data = event.postback.data
-        
-        print(f"📱 收到 Postback 來自 {user_id}: {postback_data}")
-        
-        # 檢查是否為管理員
-        if not is_admin_user(user_id):
-            print(f"❌ 非管理員用戶 {user_id} 嘗試使用 Bot")
-            return
-        
-        # 處理 Postback 動作
-        if postback_data == "calendar_upload":
-            handle_calendar_upload_request(user_id)
-        elif postback_data == "system_status":
-            send_system_status(user_id)
-        elif postback_data == "quick_menu":
-            send_quick_reply_menu(user_id)
-            
-    except Exception as e:
-        print(f"❌ 處理 Postback 事件失敗: {e}")
-
-def is_admin_user(user_id):
-    """檢查是否為管理員用戶"""
-    try:
-        admin_config = load_admin_config()
-        admins = admin_config.get("admins", [])
-        
-        for admin in admins:
-            if admin.get("admin_user_id") == user_id:
-                return True
-        return False
-    except Exception as e:
-        print(f"❌ 檢查管理員身份失敗: {e}")
-        return False
-
-def handle_calendar_upload_request(user_id, reply_token=None):
-    """處理行事曆上傳請求"""
-    try:
-        print(f"📊 管理員 {user_id} 請求行事曆上傳")
-        
-        # 發送處理中訊息
-        processing_message = TextMessage(text="🔄 正在上傳行事曆，請稍候...")
-        if reply_token:
-            messaging_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=reply_token,
-                    messages=[processing_message]
-                )
-            )
-        else:
-            messaging_api.push_message(
-                PushMessageRequest(
-                    to=user_id,
-                    messages=[processing_message]
-                )
-            )
-        
-        # 執行行事曆上傳
-        upload_weekly_calendar_to_sheet()
-        
-        # 發送完成訊息
-        success_message = TextMessage(text="✅ 行事曆上傳完成！")
-        messaging_api.push_message(
-            PushMessageRequest(
-                to=user_id,
-                messages=[success_message]
-            )
-        )
-        
-        # 再次顯示快捷選單
-        send_quick_reply_menu(user_id)
-        
-    except Exception as e:
-        print(f"❌ 處理行事曆上傳請求失敗: {e}")
-        error_message = TextMessage(text=f"❌ 行事曆上傳失敗: {str(e)}")
-        messaging_api.push_message(
-            PushMessageRequest(
-                to=user_id,
-                messages=[error_message]
-            )
-        )
-
-def send_quick_reply_menu(user_id):
-    """發送快捷回覆選單"""
-    try:
-        quick_reply_items = [
-            QuickReplyItem(
-                action=MessageAction(label="📅 行事曆上傳", text="行事曆上傳")
-            ),
-            QuickReplyItem(
-                action=MessageAction(label="📊 系統狀態", text="系統狀態")
-            ),
-            QuickReplyItem(
-                action=MessageAction(label="🔄 重新整理", text="快捷選單")
-            )
-        ]
-        
-        quick_reply = QuickReply(items=quick_reply_items)
-        
-        menu_message = TextMessage(
-            text="🎛️ 管理員快捷選單\n\n請選擇要執行的操作：",
-            quick_reply=quick_reply
-        )
-        
-        messaging_api.push_message(
-            PushMessageRequest(
-                to=user_id,
-                messages=[menu_message]
-            )
-        )
-        
-    except Exception as e:
-        print(f"❌ 發送快捷選單失敗: {e}")
-
-def send_system_status(user_id):
-    """發送系統狀態"""
-    try:
-        now = datetime.now(tz)
-        
-        status_message = f"📊 系統狀態報告\n\n"
-        status_message += f"⏰ 時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        status_message += f"🌐 環境: Railway 部署\n"
-        status_message += f"🔗 API 端點: 正常\n"
-        status_message += f"📅 行事曆: 已連接\n"
-        status_message += f"👨‍🏫 講師管理: 正常\n"
-        
-        messaging_api.push_message(
-            PushMessageRequest(
-                to=user_id,
-                messages=[TextMessage(text=status_message)]
-            )
-        )
-        
-        # 再次顯示快捷選單
-        send_quick_reply_menu(user_id)
-        
-    except Exception as e:
-        print(f"❌ 發送系統狀態失敗: {e}")
 
 # 保留原有的健康檢查路由
 @app.route('/health')
