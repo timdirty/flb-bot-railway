@@ -1077,8 +1077,7 @@ def start_scheduler():
     
     return scheduler
 
-# 導入 web_interface 的所有路由
-from web_interface import *
+# 注意：不再導入 web_interface，避免路由重複定義問題
 
 # 保留原有的健康檢查路由
 @app.route('/health')
