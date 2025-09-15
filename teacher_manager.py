@@ -14,7 +14,7 @@ class TeacherManager:
         """
         初始化老師管理器（使用 Google Apps Script API）
         """
-        self.api_url = "https://script.google.com/macros/s/AKfycbxfj5fwNIc8ncbqkOm763yo6o06wYPHm2nbfd_1yLkHlakoS9FtYfYJhvGCaiAYh_vjIQ/exec"
+        self.api_url = "https://script.google.com/macros/s/AKfycbyDKCdRNc7oulsTOfvb9v2xW242stGb1Ckl4TmsrZHfp8JJQU7ZP6dUmi8ty_M1WSxboQ/exec"
         self.teacher_cache = {}  # 快取老師資料
         self.last_update = None
         
@@ -28,52 +28,35 @@ class TeacherManager:
         Returns:
             Dict[str, str]: {老師名稱: user_id} 的字典
         """
-        # 每次都從 API 更新講師資料，確保使用最新資料
-        print("🔄 從 API 更新講師資料...")
+        # 使用本地文件作為老師資料來源（因為新的 Google Apps Script 不支援老師 API）
+        print("🔄 從本地文件載入老師資料...")
         now = datetime.now()
             
         try:
-            # 使用新的 API 獲取老師資料
-            url = "https://script.google.com/macros/s/AKfycbxfj5fwNIc8ncbqkOm763yo6o06wYPHm2nbfd_1yLkHlakoS9FtYfYJhvGCaiAYh_vjIQ/exec"
+            import os
+            teacher_data_file = "teacher_data.json"
             
-            payload = json.dumps({
-                "action": "getTeacherList"
-            })
-            
-            headers = {
-                'Content-Type': 'application/json',
-                'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3RZrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
-            }
-            
-            response = requests.post(url, headers=headers, data=payload, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            if data.get("success") and "teachers" in data:
-                # 建立老師名稱到 user_id 的對應
-                teacher_data = {}
-                for teacher in data["teachers"]:
-                    name = teacher.get("name", "").strip()
-                    user_id = teacher.get("userId", "").strip()
-                    if name:  # 包含所有有名稱的老師，即使沒有 user_id
-                        # 清理名稱（移除表情符號等）
+            if os.path.exists(teacher_data_file):
+                with open(teacher_data_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    teachers = data.get('teachers', {})
+                    
+                    # 清理老師名稱（移除表情符號等）
+                    cleaned_teachers = {}
+                    for name, user_id in teachers.items():
                         clean_name = re.sub(r'[^\w\s\u4e00-\u9fff]', '', name).strip().upper()
-                        # 如果沒有 user_id，使用名稱作為 user_id
-                        if not user_id:
-                            user_id = clean_name
-                        teacher_data[clean_name] = user_id
-                
-                self.teacher_cache = teacher_data
-                self.last_update = now
-                print(f"✅ 已更新老師資料快取，共 {len(teacher_data)} 位老師")
-                return teacher_data
+                        cleaned_teachers[clean_name] = user_id
+                    
+                    self.teacher_cache = cleaned_teachers
+                    self.last_update = now
+                    print(f"✅ 已從本地文件載入老師資料，共 {len(cleaned_teachers)} 位老師")
+                    return cleaned_teachers
             else:
-                print(f"❌ API 回傳錯誤: {data}")
+                print("❌ 本地老師資料文件不存在")
                 return self.teacher_cache if self.teacher_cache else {}
                 
         except Exception as e:
-            print(f"❌ 獲取老師資料失敗: {e}")
+            print(f"❌ 載入本地老師資料失敗: {e}")
             return self.teacher_cache if self.teacher_cache else {}
     
     def extract_teacher_names_from_text(self, text: str) -> List[str]:

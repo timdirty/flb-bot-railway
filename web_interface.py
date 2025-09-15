@@ -321,15 +321,34 @@ def api_teachers():
         teacher_data = teacher_manager.get_teacher_data(force_refresh=True)
         
         # 獲取完整的老師資訊
-        url = "https://script.google.com/macros/s/AKfycbxfj5fwNIc8ncbqkOm763yo6o06wYPHm2nbfd_1yLkHlakoS9FtYfYJhvGCaiAYh_vjIQ/exec"
+        url = "https://script.google.com/macros/s/AKfycbyDKCdRNc7oulsTOfvb9v2xW242stGb1Ckl4TmsrZHfp8JJQU7ZP6dUmi8ty_M1WSxboQ/exec"
         payload = json.dumps({"action": "getTeacherList"})
         headers = {
             'Content-Type': 'application/json',
             'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3RZrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
         }
         
-        response = requests.post(url, headers=headers, data=payload, timeout=10)
-        response.raise_for_status()
+        # 增加超時時間並添加重試機制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, headers=headers, data=payload, timeout=30)
+                response.raise_for_status()
+                break  # 成功則跳出重試循環
+            except requests.exceptions.Timeout as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 請求超時，第 {attempt + 1} 次重試...")
+                    continue
+                else:
+                    print(f"❌ 請求超時，已重試 {max_retries} 次: {e}")
+                    raise
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 請求失敗，第 {attempt + 1} 次重試: {e}")
+                    continue
+                else:
+                    print(f"❌ 請求失敗，已重試 {max_retries} 次: {e}")
+                    raise
         full_data = response.json()
         
         if full_data.get("success") and "teachers" in full_data:

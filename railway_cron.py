@@ -25,7 +25,7 @@ def trigger_railway_tasks():
         response = requests.get(f"{RAILWAY_URL}/api/trigger_tasks", timeout=30)
         
         if response.status_code == 200:
-            result = response.json()
+https://web-production-1fbf.up.railway.app/api/trigger_calendar_upload            result = response.json()
             print(f"✅ 任務觸發成功: {result.get('message', '未知')}")
         else:
             print(f"❌ 任務觸發失敗: {response.status_code} - {response.text}")

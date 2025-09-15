@@ -419,12 +419,34 @@ def upload_weekly_calendar_to_sheet():
                 "items": calendar_items
             })
             
+            # 增加重試機制
+            max_retries = 3
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = requests.request("POST", url, headers=headers, data=payload, timeout=60)
+                    break  # 成功則跳出重試循環
+                except requests.exceptions.Timeout as e:
+                    if attempt < max_retries - 1:
+                        print(f"⚠️ 批量上傳請求超時，第 {attempt + 1} 次重試...")
+                        continue
+                    else:
+                        print(f"❌ 批量上傳請求超時，已重試 {max_retries} 次: {e}")
+                        raise
+                except requests.exceptions.RequestException as e:
+                    if attempt < max_retries - 1:
+                        print(f"⚠️ 批量上傳請求失敗，第 {attempt + 1} 次重試: {e}")
+                        continue
+                    else:
+                        print(f"❌ 批量上傳請求失敗，已重試 {max_retries} 次: {e}")
+                        raise
+            
             try:
-                response = requests.request("POST", url, headers=headers, data=payload, timeout=30)
-                
                 if response.status_code == 200:
                     try:
                         result = response.json()
+                        print(f"📄 API 回應: {result}")  # 添加詳細的 API 回應日誌
+                        
                         if result.get('success'):
                             uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
                             print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
@@ -438,10 +460,14 @@ def upload_weekly_calendar_to_sheet():
                             admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
                             send_admin_notification(admin_message, "system")
                         else:
-                            print(f"❌ 批量上傳失敗: {result.get('message', '未知錯誤')}")
+                            error_msg = result.get('message', '未知錯誤')
+                            print(f"❌ 批量上傳失敗: {error_msg}")
+                            print(f"📄 完整回應: {result}")
+                            
                             # 發送失敗通知
                             error_message = f"❌ 批量上傳失敗\n\n"
-                            error_message += f"❌ 錯誤: {result.get('message', '未知錯誤')}\n"
+                            error_message += f"❌ 錯誤: {error_msg}\n"
+                            error_message += f"📄 完整回應: {json.dumps(result, ensure_ascii=False, indent=2)}\n"
                             error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
                             send_admin_notification(error_message, "error_notifications")
                     except json.JSONDecodeError as e:
