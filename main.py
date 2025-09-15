@@ -256,9 +256,9 @@ def upload_weekly_calendar_to_sheet():
                                         if end_dt.tzinfo is None:
                                             end_dt = tz.localize(end_dt)
                                     
-                                    # 統一使用行事曆名稱來判定講師（不管描述有或沒有）
+                                    # 完全忽略描述，直接根據行事曆名稱來判定講師
                                     teacher_name = "未知老師"
-                                    print(f"🔍 使用行事曆名稱模糊比對講師: {calendar.name}")
+                                    print(f"🔍 直接使用行事曆名稱模糊比對講師: {calendar.name}")
                                     
                                     # 特殊名稱映射（僅處理特殊情況）
                                     special_mappings = {
@@ -779,28 +779,19 @@ def check_upcoming_courses():
                         
                         # 只處理設定時間內即將開始的課程
                         if 1 <= time_diff <= reminder_advance:
-                            # 從描述中提取老師資訊並進行模糊比對
+                            # 完全忽略描述，直接根據行事曆名稱來判定講師
                             teacher_name = "未知老師"
                             teacher_user_id = None
                             
-                            # 首先嘗試從描述中解析老師資訊
-                            if description:
-                                parsed_info = teacher_manager.parse_calendar_description(description)
-                                if parsed_info.get("teachers"):
-                                    raw_teacher_name = parsed_info["teachers"][0]
-                                    match_result = teacher_manager.fuzzy_match_teacher(raw_teacher_name)
-                                    if match_result:
-                                        teacher_name = match_result[0]
-                                        teacher_user_id = match_result[1]
-                                    else:
-                                        teacher_name = raw_teacher_name
-                            
-                            # 如果描述中沒有老師資訊，嘗試從行事曆名稱推斷
-                            if teacher_name == "未知老師" and calendar.name:
+                            # 直接使用行事曆名稱進行模糊匹配
+                            if calendar.name:
                                 match_result = teacher_manager.fuzzy_match_teacher(calendar.name)
                                 if match_result:
                                     teacher_name = match_result[0]
                                     teacher_user_id = match_result[1]
+                                    print(f"✅ 從行事曆名稱匹配講師: {calendar.name} -> {teacher_name}")
+                                else:
+                                    print(f"❌ 無法從行事曆名稱匹配講師: {calendar.name}")
                             
                             # 提取教案連結
                             lesson_plan_url = extract_lesson_plan_url(description)
