@@ -1777,6 +1777,27 @@ def api_trigger_calendar_upload():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+@app.route('/api/trigger_tomorrow_check', methods=['GET'])
+def api_trigger_tomorrow_check():
+    """觸發隔天課程檢查（與 main.py 中的端點一致）"""
+    try:
+        from main import check_tomorrow_courses_new
+        
+        # 執行隔天課程檢查
+        check_tomorrow_courses_new()
+        
+        return jsonify({
+            "success": True,
+            "message": "隔天課程檢查觸發成功",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False, 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 def start_scheduler():
     """啟動定時任務"""
     try:

@@ -570,8 +570,139 @@ def check_tomorrow_courses_new():
         tomorrow = now + timedelta(days=1)
         print(f"🌙 檢查隔天課程: {tomorrow.strftime('%Y-%m-%d')}")
         
-        # 這裡可以添加具體的隔天課程檢查邏輯
-        message = f"🌙 隔天課程提醒功能已準備就緒！\n\n📅 檢查日期: {tomorrow.strftime('%Y年%m月%d日')}"
+        # 設定隔天的時間範圍
+        tomorrow_start = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+        tomorrow_end = tomorrow.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # 連接到 CalDAV 獲取隔天課程
+        client = DAVClient(caldav_url, username=username, password=password)
+        principal = client.principal()
+        calendars = principal.calendars()
+        
+        tomorrow_courses = []
+        
+        for calendar in calendars:
+            try:
+                events = calendar.search(
+                    start=tomorrow_start,
+                    end=tomorrow_end,
+                    event=True,
+                    expand=True
+                )
+                
+                for event in events:
+                    try:
+                        # 解析事件資料
+                        event_data = event.data
+                        if isinstance(event_data, str):
+                            summary = '無標題'
+                            description = ''
+                            start_time = ''
+                            end_time = ''
+                            location = ''
+                            
+                            lines = event_data.split('\n')
+                            i = 0
+                            while i < len(lines):
+                                line = lines[i].strip()
+                                
+                                if line.startswith('SUMMARY:'):
+                                    summary = line[8:].strip()
+                                elif line.startswith('DESCRIPTION:'):
+                                    description = line[12:].strip()
+                                    # 處理多行描述
+                                    j = i + 1
+                                    while j < len(lines) and lines[j].startswith(' '):
+                                        description += lines[j][1:].strip()
+                                        j += 1
+                                    i = j - 1
+                                elif line.startswith('DTSTART'):
+                                    if 'TZID=' in line:
+                                        start_time = line.split(':')[1] if ':' in line else ''
+                                    else:
+                                        start_time = line.split(':')[1] if ':' in line else ''
+                                elif line.startswith('DTEND'):
+                                    if 'TZID=' in line:
+                                        end_time = line.split(':')[1] if ':' in line else ''
+                                    else:
+                                        end_time = line.split(':')[1] if ':' in line else ''
+                                elif line.startswith('LOCATION:'):
+                                    location = line[9:].strip()
+                                
+                                i += 1
+                            
+                            # 解析時間
+                            if start_time and end_time:
+                                try:
+                                    if len(start_time) == 8:  # YYYYMMDD
+                                        start_dt = datetime.strptime(start_time, '%Y%m%d')
+                                        end_dt = datetime.strptime(end_time, '%Y%m%d')
+                                    else:  # YYYYMMDDTHHMMSS
+                                        start_dt = datetime.strptime(start_time, '%Y%m%dT%H%M%S')
+                                        end_dt = datetime.strptime(end_time, '%Y%m%dT%H%M%S')
+                                    
+                                    start_dt = tz.localize(start_dt)
+                                    end_dt = tz.localize(end_dt)
+                                    
+                                    # 格式化時間
+                                    start_str = start_dt.strftime('%H:%M')
+                                    end_str = end_dt.strftime('%H:%M')
+                                    
+                                    # 提取講師資訊
+                                    teacher_name = "未知老師"
+                                    if description:
+                                        # 從描述中提取講師
+                                        teacher_match = re.search(r'講師[：:]\s*([^\n\r]+)', description)
+                                        if teacher_match:
+                                            teacher_name = teacher_match.group(1).strip()
+                                    
+                                    # 如果沒有從描述中找到講師，使用行事曆名稱模糊匹配
+                                    if teacher_name == "未知老師":
+                                        teacher_name = calendar.name
+                                    
+                                    # 提取課程類型
+                                    course_type = "未知課程"
+                                    course_match = re.search(r'([A-Z]+)', summary)
+                                    if course_match:
+                                        course_type = course_match.group(1)
+                                    
+                                    tomorrow_courses.append({
+                                        "summary": summary,
+                                        "teacher": teacher_name,
+                                        "start_time": start_str,
+                                        "end_time": end_str,
+                                        "location": location,
+                                        "course_type": course_type,
+                                        "calendar": calendar.name
+                                    })
+                                    
+                                except Exception as e:
+                                    print(f"解析時間失敗: {e}")
+                                    continue
+                        
+                    except Exception as e:
+                        print(f"解析事件失敗: {e}")
+                        continue
+                        
+            except Exception as e:
+                print(f"讀取行事曆 {calendar.name} 失敗: {e}")
+                continue
+        
+        # 按開始時間排序
+        tomorrow_courses.sort(key=lambda x: x['start_time'])
+        
+        # 構建提醒訊息
+        if tomorrow_courses:
+            message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 共 {len(tomorrow_courses)} 堂課\n\n"
+            
+            for i, course in enumerate(tomorrow_courses, 1):
+                message += f"{i}. {course['course_type']} - {course['teacher']}\n"
+                message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
+                if course['location']:
+                    message += f"   📍 {course['location']}\n"
+                message += f"   📝 {course['summary']}\n\n"
+        else:
+            message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 明天沒有安排課程"
         
         # 發送給所有管理員
         for admin in admins:
@@ -1169,6 +1300,25 @@ def trigger_calendar_upload():
         return {
             "success": False, 
             "message": f"觸發行事曆上傳失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_tomorrow_check')
+def trigger_tomorrow_check():
+    """觸發隔天課程檢查"""
+    try:
+        print("🌙 觸發隔天課程檢查...")
+        check_tomorrow_courses_new()
+        return {
+            "success": True, 
+            "message": "隔天課程檢查已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發隔天課程檢查失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發隔天課程檢查失敗: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
 
