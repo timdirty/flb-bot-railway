@@ -1,7 +1,7 @@
 {
   "scheduler_settings": {
     "check_interval_minutes": 2,
-    "reminder_advance_minutes": 10,
+    "reminder_advance_minutes": 45,
     "teacher_update_interval_minutes": 15
   },
   "notification_settings": {

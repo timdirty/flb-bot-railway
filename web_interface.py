@@ -95,7 +95,7 @@ def load_system_config():
             default_config = {
                 "scheduler_settings": {
                     "check_interval_minutes": 30,
-                    "reminder_advance_minutes": 30,
+                    "reminder_advance_minutes": 45,
                     "teacher_update_interval_minutes": 30
                 },
                 "notification_settings": {
@@ -819,7 +819,7 @@ def api_test_course_reminder():
             
             # 載入系統設定
             system_config = load_system_config()
-            reminder_advance = system_config.get('scheduler_settings', {}).get('reminder_advance_minutes', 30)
+            reminder_advance = system_config.get('scheduler_settings', {}).get('reminder_advance_minutes', 45)
             
             # 獲取接下來設定時間內的事件
             tz = pytz.timezone("Asia/Taipei")
@@ -1814,7 +1814,7 @@ def start_scheduler():
         
         # 獲取設定值
         check_interval = scheduler_settings.get('check_interval_minutes', 30)
-        reminder_advance = scheduler_settings.get('reminder_advance_minutes', 30)
+        reminder_advance = scheduler_settings.get('reminder_advance_minutes', 45)
         daily_summary_time = notification_settings.get('daily_summary_time', '08:00')
         evening_reminder_time = notification_settings.get('evening_reminder_time', '19:00')
         
