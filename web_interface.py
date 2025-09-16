@@ -100,7 +100,10 @@ def load_system_config():
                 },
                 "notification_settings": {
                     "daily_summary_time": "08:00",
-                    "evening_reminder_time": "19:00"
+                    "evening_reminder_time": "19:00",
+                    "enable_system_check_notifications": False,
+                    "enable_upload_completion_notifications": False,
+                    "enable_no_courses_notifications": False
                 }
             }
             save_system_config(default_config)
@@ -115,7 +118,10 @@ def load_system_config():
             },
             "notification_settings": {
                 "daily_summary_time": "08:00",
-                "evening_reminder_time": "19:00"
+                "evening_reminder_time": "19:00",
+                "enable_system_check_notifications": False,
+                "enable_upload_completion_notifications": False,
+                "enable_no_courses_notifications": False
             }
         }
 
@@ -1639,6 +1645,12 @@ def api_update_system_config():
                 config['notification_settings']['daily_summary_time'] = notification_settings['daily_summary_time']
             if 'evening_reminder_time' in notification_settings:
                 config['notification_settings']['evening_reminder_time'] = notification_settings['evening_reminder_time']
+            if 'enable_system_check_notifications' in notification_settings:
+                config['notification_settings']['enable_system_check_notifications'] = bool(notification_settings['enable_system_check_notifications'])
+            if 'enable_upload_completion_notifications' in notification_settings:
+                config['notification_settings']['enable_upload_completion_notifications'] = bool(notification_settings['enable_upload_completion_notifications'])
+            if 'enable_no_courses_notifications' in notification_settings:
+                config['notification_settings']['enable_no_courses_notifications'] = bool(notification_settings['enable_no_courses_notifications'])
         
         # 保存設定
         if save_system_config(config):
