@@ -563,6 +563,180 @@ def morning_summary():
     except Exception as e:
         print(f"❌ 發送今日總覽失敗: {e}")
 
+def parse_course_info(title, description):
+    """解析課程資訊"""
+    try:
+        # 初始化課程資訊
+        course_info = {
+            'course_type': '',
+            'teacher': '未知老師',
+            'summary': description or '',
+            'lesson_plan_url': '',
+            'signin_url': ''
+        }
+        
+        # 從標題中提取課程類型
+        if title and title != '無標題':
+            course_info['course_type'] = title
+        else:
+            course_info['course_type'] = '未知課程'
+        
+        # 從描述中提取教案連結
+        if description:
+            import re
+            # 尋找 Notion 連結
+            notion_pattern = r'https://www\.notion\.so/[a-zA-Z0-9?=&]+'
+            notion_matches = re.findall(notion_pattern, description)
+            if notion_matches:
+                course_info['lesson_plan_url'] = notion_matches[0]
+            
+            # 尋找簽到連結
+            signin_pattern = r'https://liff\.line\.me/[a-zA-Z0-9-]+'
+            signin_matches = re.findall(signin_pattern, description)
+            if signin_matches:
+                course_info['signin_url'] = signin_matches[0]
+        
+        return course_info
+        
+    except Exception as e:
+        print(f"解析課程資訊失敗: {e}")
+        return {
+            'course_type': title or '未知課程',
+            'teacher': '未知老師',
+            'summary': description or '',
+            'lesson_plan_url': '',
+            'signin_url': ''
+        }
+
+def check_today_courses():
+    """檢查當天的課程並發送提醒"""
+    try:
+        now = datetime.now(tz)
+        today = now.date()
+        print(f"☀️ 檢查當日課程: {today.strftime('%Y-%m-%d')}")
+        
+        # 設定當天的時間範圍
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # 連接到 CalDAV 獲取當天課程
+        client = DAVClient(caldav_url, username=username, password=password)
+        principal = client.principal()
+        calendars = principal.calendars()
+        
+        today_courses = []
+        
+        for calendar in calendars:
+            try:
+                events = calendar.search(
+                    start=today_start,
+                    end=today_end,
+                    event=True,
+                    expand=True
+                )
+                
+                for event in events:
+                    try:
+                        # 解析事件詳情
+                        event_data = {
+                            'title': event.data.vevent.vevent.summary.value if hasattr(event.data.vevent.vevent, 'summary') else '無標題',
+                            'start_time': event.data.vevent.vevent.dtstart.value.strftime('%H:%M') if hasattr(event.data.vevent.vevent, 'dtstart') else '未知時間',
+                            'end_time': event.data.vevent.vevent.dtend.value.strftime('%H:%M') if hasattr(event.data.vevent.vevent, 'dtend') else '未知時間',
+                            'description': event.data.vevent.vevent.description.value if hasattr(event.data.vevent.vevent, 'description') else '',
+                            'location': event.data.vevent.vevent.location.value if hasattr(event.data.vevent.vevent, 'location') else '',
+                            'calendar_name': calendar.name
+                        }
+                        
+                        # 解析課程資訊
+                        course_info = parse_course_info(event_data['title'], event_data['description'])
+                        event_data.update(course_info)
+                        
+                        # 只包含有效的課程事件
+                        if event_data.get('course_type') and event_data.get('teacher'):
+                            today_courses.append(event_data)
+                            
+                    except Exception as e:
+                        print(f"解析事件失敗: {e}")
+                        continue
+                        
+            except Exception as e:
+                print(f"讀取行事曆 {calendar.name} 失敗: {e}")
+                continue
+        
+        # 按開始時間排序
+        today_courses.sort(key=lambda x: x['start_time'])
+        
+        # 構建管理員的完整提醒訊息
+        if today_courses:
+            admin_message = f"☀️ 當日課程提醒\n\n📅 日期: {today.strftime('%Y年%m月%d日')}\n📚 共 {len(today_courses)} 堂課\n\n"
+            
+            for i, course in enumerate(today_courses, 1):
+                admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
+                admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
+                if course['location']:
+                    admin_message += f"   📍 {course['location']}\n"
+                admin_message += f"   📝 {course['summary']}\n\n"
+        else:
+            admin_message = f"☀️ 當日課程提醒\n\n📅 日期: {today.strftime('%Y年%m月%d日')}\n📚 今天沒有安排課程"
+        
+        # 按講師分組課程
+        teacher_courses = {}
+        for course in today_courses:
+            teacher_name = course['teacher']
+            if teacher_name not in teacher_courses:
+                teacher_courses[teacher_name] = []
+            teacher_courses[teacher_name].append(course)
+        
+        # 發送個人化提醒給每位講師
+        teacher_manager = TeacherManager()
+        for teacher_name, courses in teacher_courses.items():
+            try:
+                # 獲取講師的 user_id
+                teacher_user_id = teacher_manager.get_teacher_user_id(teacher_name)
+                
+                if teacher_user_id:
+                    # 構建個人化訊息
+                    personal_message = f"☀️ 當日課程提醒\n\n📅 日期: {today.strftime('%Y年%m月%d日')}\n👨‍🏫 講師: {teacher_name}\n📚 共 {len(courses)} 堂課\n\n"
+                    
+                    for i, course in enumerate(courses, 1):
+                        personal_message += f"{i}. {course['course_type']}\n"
+                        personal_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
+                        if course['location']:
+                            personal_message += f"   📍 {course['location']}\n"
+                        personal_message += f"   📝 {course['summary']}\n\n"
+                    
+                    # 發送給講師
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=teacher_user_id,
+                            messages=[TextMessage(text=personal_message)]
+                        )
+                    )
+                    print(f"✅ 已發送當日提醒給講師 {teacher_name} ({teacher_user_id})")
+                else:
+                    print(f"⚠️ 找不到講師 {teacher_name} 的 user_id")
+                    
+            except Exception as e:
+                print(f"❌ 發送當日提醒給講師 {teacher_name} 失敗: {e}")
+        
+        # 發送完整提醒給所有管理員
+        for admin in admins:
+            try:
+                admin_user_id = admin.get("admin_user_id")
+                if admin_user_id and admin_user_id.startswith("U"):
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=admin_user_id,
+                            messages=[TextMessage(text=admin_message)]
+                        )
+                    )
+                    print(f"✅ 已發送當日提醒給 {admin.get('admin_name', '未知')}")
+            except Exception as e:
+                print(f"❌ 發送當日提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
+
+    except Exception as e:
+        print(f"❌ 檢查當日課程失敗: {e}")
+
 def check_tomorrow_courses_new():
     """每天晚上 19:00 檢查隔天的課程並發送提醒"""
     try:
@@ -1337,6 +1511,25 @@ def trigger_calendar_upload():
         return {
             "success": False, 
             "message": f"觸發行事曆上傳失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_today_check')
+def trigger_today_check():
+    """觸發當日課程檢查"""
+    try:
+        print("☀️ 觸發當日課程檢查...")
+        check_today_courses()
+        return {
+            "success": True, 
+            "message": "當日課程檢查已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發當日課程檢查失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發當日課程檢查失敗: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
 
