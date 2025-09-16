@@ -542,10 +542,71 @@ def morning_summary():
         today = now.date()
         print(f"📅 發送今日課程總覽: {today}")
         
-        # 這裡可以添加具體的課程總覽邏輯
-        message = f"🌅 早安！今天是 {today.strftime('%Y年%m月%d日')}\n\n📚 今日課程總覽功能已準備就緒！"
+        # 設定當天的時間範圍
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
         
-        # 發送給所有管理員
+        # 連接到 CalDAV 獲取當天課程
+        client = DAVClient(caldav_url, username=username, password=password)
+        principal = client.principal()
+        calendars = principal.calendars()
+        
+        today_courses = []
+        
+        for calendar in calendars:
+            try:
+                events = calendar.search(
+                    start=today_start,
+                    end=today_end,
+                    event=True,
+                    expand=True
+                )
+                
+                for event in events:
+                    try:
+                        # 解析事件詳情
+                        event_data = {
+                            'title': event.data.vevent.vevent.summary.value if hasattr(event.data.vevent.vevent, 'summary') else '無標題',
+                            'start_time': event.data.vevent.vevent.dtstart.value.strftime('%H:%M') if hasattr(event.data.vevent.vevent, 'dtstart') else '未知時間',
+                            'end_time': event.data.vevent.vevent.dtend.value.strftime('%H:%M') if hasattr(event.data.vevent.vevent, 'dtend') else '未知時間',
+                            'description': event.data.vevent.vevent.description.value if hasattr(event.data.vevent.vevent, 'description') else '',
+                            'location': event.data.vevent.vevent.location.value if hasattr(event.data.vevent.vevent, 'location') else '',
+                            'calendar_name': calendar.name
+                        }
+                        
+                        # 解析課程資訊
+                        course_info = parse_course_info(event_data['title'], event_data['description'])
+                        event_data.update(course_info)
+                        
+                        # 只包含有效的課程事件
+                        if event_data.get('course_type') and event_data.get('teacher'):
+                            today_courses.append(event_data)
+                            
+                    except Exception as e:
+                        print(f"解析事件失敗: {e}")
+                        continue
+                        
+            except Exception as e:
+                print(f"讀取行事曆 {calendar.name} 失敗: {e}")
+                continue
+        
+        # 按開始時間排序
+        today_courses.sort(key=lambda x: x['start_time'])
+        
+        # 構建管理員的完整總覽訊息
+        if today_courses:
+            admin_message = f"🌅 早安！今天是 {today.strftime('%Y年%m月%d日')}\n\n📚 今日課程總覽\n📚 共 {len(today_courses)} 堂課\n\n"
+            
+            for i, course in enumerate(today_courses, 1):
+                admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
+                admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
+                if course['location']:
+                    admin_message += f"   📍 {course['location']}\n"
+                admin_message += f"   📝 {course['summary']}\n\n"
+        else:
+            admin_message = f"🌅 早安！今天是 {today.strftime('%Y年%m月%d日')}\n\n📚 今日課程總覽\n📚 今天沒有安排課程"
+        
+        # 發送完整總覽給所有管理員
         for admin in admins:
             try:
                 admin_user_id = admin.get("admin_user_id")
@@ -553,7 +614,7 @@ def morning_summary():
                     messaging_api.push_message(
                         PushMessageRequest(
                             to=admin_user_id,
-                            messages=[TextMessage(text=message)]
+                            messages=[TextMessage(text=admin_message)]
                         )
                     )
                     print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
