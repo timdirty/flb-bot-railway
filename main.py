@@ -642,9 +642,29 @@ def parse_course_info(title, description):
         else:
             course_info['course_type'] = '未知課程'
         
-        # 從描述中提取教案連結
+        # 從描述中提取講師資訊
         if description:
             import re
+            
+            # 尋找講師資訊 - 支援多種格式
+            teacher_patterns = [
+                r'講師:\s*([^助教\s]+)',
+                r'講師：\s*([^助教\s]+)',
+                r'講師\s*([^助教\s]+)',
+                r'講師\s*:\s*([^助教\s]+)',
+                r'講師\s*：\s*([^助教\s]+)'
+            ]
+            
+            for pattern in teacher_patterns:
+                match = re.search(pattern, description)
+                if match:
+                    teacher_name = match.group(1).strip()
+                    # 清理講師名稱
+                    teacher_name = re.sub(r'[^\w\s\u4e00-\u9fff]', '', teacher_name).strip()
+                    if teacher_name and len(teacher_name) > 1:
+                        course_info['teacher'] = teacher_name.upper()
+                        break
+            
             # 尋找 Notion 連結
             notion_pattern = r'https://www\.notion\.so/[a-zA-Z0-9?=&]+'
             notion_matches = re.findall(notion_pattern, description)
