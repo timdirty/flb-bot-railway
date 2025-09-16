@@ -690,7 +690,7 @@ def parse_course_info(title, description):
         }
 
 def check_today_courses():
-    """檢查當天的課程並發送提醒"""
+    """檢查當天的課程並發送提醒 - 使用與隔天課程提醒相同的邏輯"""
     try:
         now = datetime.now(tz)
         today = now.date()
@@ -718,24 +718,94 @@ def check_today_courses():
                 
                 for event in events:
                     try:
-                        # 解析事件詳情
-                        event_data = {
-                            'title': event.data.vevent.vevent.summary.value if hasattr(event.data.vevent.vevent, 'summary') else '無標題',
-                            'start_time': event.data.vevent.vevent.dtstart.value.strftime('%H:%M') if hasattr(event.data.vevent.vevent, 'dtstart') else '未知時間',
-                            'end_time': event.data.vevent.vevent.dtend.value.strftime('%H:%M') if hasattr(event.data.vevent.vevent, 'dtend') else '未知時間',
-                            'description': event.data.vevent.vevent.description.value if hasattr(event.data.vevent.vevent, 'description') else '',
-                            'location': event.data.vevent.vevent.location.value if hasattr(event.data.vevent.vevent, 'location') else '',
-                            'calendar_name': calendar.name
-                        }
-                        
-                        # 解析課程資訊
-                        course_info = parse_course_info(event_data['title'], event_data['description'])
-                        event_data.update(course_info)
-                        
-                        # 只包含有效的課程事件
-                        if event_data.get('course_type') and event_data.get('teacher'):
-                            today_courses.append(event_data)
+                        # 解析事件資料 - 使用與隔天課程提醒相同的邏輯
+                        event_data = event.data
+                        if isinstance(event_data, str):
+                            summary = '無標題'
+                            description = ''
+                            start_time = ''
+                            end_time = ''
+                            location = ''
                             
+                            lines = event_data.split('\n')
+                            i = 0
+                            while i < len(lines):
+                                line = lines[i].strip()
+                                
+                                if line.startswith('SUMMARY:'):
+                                    summary = line[8:].strip()
+                                elif line.startswith('DESCRIPTION:'):
+                                    description = line[12:].strip()
+                                    # 處理多行描述
+                                    j = i + 1
+                                    while j < len(lines) and lines[j].startswith(' '):
+                                        description += lines[j][1:].strip()
+                                        j += 1
+                                    i = j - 1
+                                elif line.startswith('DTSTART'):
+                                    if 'TZID=' in line:
+                                        start_time = line.split(':')[1] if ':' in line else ''
+                                    else:
+                                        start_time = line.split(':')[1] if ':' in line else ''
+                                elif line.startswith('DTEND'):
+                                    if 'TZID=' in line:
+                                        end_time = line.split(':')[1] if ':' in line else ''
+                                    else:
+                                        end_time = line.split(':')[1] if ':' in line else ''
+                                elif line.startswith('LOCATION:'):
+                                    location = line[9:].strip()
+                                
+                                i += 1
+                            
+                            # 解析時間
+                            if start_time and end_time:
+                                try:
+                                    if len(start_time) == 8:  # YYYYMMDD
+                                        start_dt = datetime.strptime(start_time, '%Y%m%d')
+                                        end_dt = datetime.strptime(end_time, '%Y%m%d')
+                                    else:  # YYYYMMDDTHHMMSS
+                                        start_dt = datetime.strptime(start_time, '%Y%m%dT%H%M%S')
+                                        end_dt = datetime.strptime(end_time, '%Y%m%dT%H%M%S')
+                                    
+                                    start_dt = tz.localize(start_dt)
+                                    end_dt = tz.localize(end_dt)
+                                    
+                                    # 格式化時間
+                                    start_str = start_dt.strftime('%H:%M')
+                                    end_str = end_dt.strftime('%H:%M')
+                                    
+                                    # 提取講師資訊
+                                    teacher_name = "未知老師"
+                                    if description:
+                                        # 從描述中提取講師
+                                        teacher_match = re.search(r'講師[：:]\s*([^\n\r]+)', description)
+                                        if teacher_match:
+                                            teacher_name = teacher_match.group(1).strip()
+                                    
+                                    # 如果沒有從描述中找到講師，使用行事曆名稱模糊匹配
+                                    if teacher_name == "未知老師":
+                                        teacher_name = calendar.name
+                                    
+                                    # 提取課程類型
+                                    course_type = "未知課程"
+                                    course_match = re.search(r'([A-Z]+)', summary)
+                                    if course_match:
+                                        course_type = course_match.group(1)
+                                    
+                                    today_courses.append({
+                                        "summary": summary,
+                                        "teacher": teacher_name,
+                                        "start_time": start_str,
+                                        "end_time": end_str,
+                                        "location": location,
+                                        "course_type": course_type,
+                                        "calendar": calendar.name
+                                    })
+                                    
+                                except Exception as e:
+                                    print(f"解析時間失敗: {e}")
+                                    continue
+                        
                     except Exception as e:
                         print(f"解析事件失敗: {e}")
                         continue
