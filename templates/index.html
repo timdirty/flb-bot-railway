@@ -537,6 +537,46 @@
                     </div>
                 </div>
 
+                <!-- 通知開關設定 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-toggle-on"></i> 通知開關設定
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="enable-system-check-notifications">
+                                    <label class="form-check-label" for="enable-system-check-notifications">
+                                        系統檢查通知
+                                    </label>
+                                    <div class="form-text">發送系統檢查狀態通知</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="enable-upload-completion-notifications">
+                                    <label class="form-check-label" for="enable-upload-completion-notifications">
+                                        上傳完成通知
+                                    </label>
+                                    <div class="form-text">發送行事曆上傳完成通知</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="enable-no-courses-notifications">
+                                    <label class="form-check-label" for="enable-no-courses-notifications">
+                                        無課程通知
+                                    </label>
+                                    <div class="form-text">沒有課程時也發送通知</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 操作按鈕 -->
                 <div class="card mt-3">
                     <div class="card-body">
@@ -1998,6 +2038,11 @@
                     document.getElementById('daily-summary-time').value = notificationSettings.daily_summary_time || '08:00';
                     document.getElementById('evening-reminder-time').value = notificationSettings.evening_reminder_time || '19:00';
                     
+                    // 更新通知開關
+                    document.getElementById('enable-system-check-notifications').checked = notificationSettings.enable_system_check_notifications || false;
+                    document.getElementById('enable-upload-completion-notifications').checked = notificationSettings.enable_upload_completion_notifications || false;
+                    document.getElementById('enable-no-courses-notifications').checked = notificationSettings.enable_no_courses_notifications || false;
+                    
                     showNotification('系統設定載入成功', 'success');
                 } else {
                     showNotification('載入系統設定失敗', 'error');
@@ -2025,7 +2070,10 @@
                     },
                     notification_settings: {
                         daily_summary_time: document.getElementById('daily-summary-time').value,
-                        evening_reminder_time: document.getElementById('evening-reminder-time').value
+                        evening_reminder_time: document.getElementById('evening-reminder-time').value,
+                        enable_system_check_notifications: document.getElementById('enable-system-check-notifications').checked,
+                        enable_upload_completion_notifications: document.getElementById('enable-upload-completion-notifications').checked,
+                        enable_no_courses_notifications: document.getElementById('enable-no-courses-notifications').checked
                     }
                 };
                 

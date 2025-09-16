@@ -451,14 +451,17 @@ def upload_weekly_calendar_to_sheet():
                             uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
                             print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
                             
-                            # 發送成功通知
-                            admin_message = f"📊 當週行事曆上傳完成\n\n"
-                            admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
-                            admin_message += f"📈 總項目數: {len(calendar_items)}\n"
-                            admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
-                            admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
-                            admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                            send_admin_notification(admin_message, "system")
+                            # 發送成功通知（根據設定決定）
+                            if should_send_notification('enable_upload_completion_notifications'):
+                                admin_message = f"📊 當週行事曆上傳完成\n\n"
+                                admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+                                admin_message += f"📈 總項目數: {len(calendar_items)}\n"
+                                admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
+                                admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
+                                admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                                send_admin_notification(admin_message, "system")
+                            else:
+                                print("ℹ️ 上傳完成通知已停用")
                         else:
                             error_msg = result.get('message', '未知錯誤')
                             print(f"❌ 批量上傳失敗: {error_msg}")
@@ -606,20 +609,23 @@ def morning_summary():
         else:
             admin_message = f"🌅 早安！今天是 {today.strftime('%Y年%m月%d日')}\n\n📚 今日課程總覽\n📚 今天沒有安排課程"
         
-        # 發送完整總覽給所有管理員
-        for admin in admins:
-            try:
-                admin_user_id = admin.get("admin_user_id")
-                if admin_user_id and admin_user_id.startswith("U"):
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
-                            messages=[TextMessage(text=admin_message)]
+        # 發送完整總覽給所有管理員（根據設定決定）
+        if today_courses or should_send_notification('enable_no_courses_notifications'):
+            for admin in admins:
+                try:
+                    admin_user_id = admin.get("admin_user_id")
+                    if admin_user_id and admin_user_id.startswith("U"):
+                        messaging_api.push_message(
+                            PushMessageRequest(
+                                to=admin_user_id,
+                                messages=[TextMessage(text=admin_message)]
+                            )
                         )
-                    )
-                    print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
-            except Exception as e:
-                print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
+                        print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
+                except Exception as e:
+                    print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
+        else:
+            print("ℹ️ 沒有課程時的通知已停用")
                 
     except Exception as e:
         print(f"❌ 發送今日總覽失敗: {e}")
@@ -870,20 +876,23 @@ def check_today_courses():
             except Exception as e:
                 print(f"❌ 發送當日提醒給講師 {teacher_name} 失敗: {e}")
         
-        # 發送完整提醒給所有管理員
-        for admin in admins:
-            try:
-                admin_user_id = admin.get("admin_user_id")
-                if admin_user_id and admin_user_id.startswith("U"):
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
-                            messages=[TextMessage(text=admin_message)]
+        # 發送完整提醒給所有管理員（根據設定決定）
+        if today_courses or should_send_notification('enable_no_courses_notifications'):
+            for admin in admins:
+                try:
+                    admin_user_id = admin.get("admin_user_id")
+                    if admin_user_id and admin_user_id.startswith("U"):
+                        messaging_api.push_message(
+                            PushMessageRequest(
+                                to=admin_user_id,
+                                messages=[TextMessage(text=admin_message)]
+                            )
                         )
-                    )
-                    print(f"✅ 已發送當日提醒給 {admin.get('admin_name', '未知')}")
-            except Exception as e:
-                print(f"❌ 發送當日提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
+                        print(f"✅ 已發送當日提醒給 {admin.get('admin_name', '未知')}")
+                except Exception as e:
+                    print(f"❌ 發送當日提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
+        else:
+            print("ℹ️ 沒有課程時的通知已停用")
 
     except Exception as e:
         print(f"❌ 檢查當日課程失敗: {e}")
@@ -1190,15 +1199,18 @@ def check_upcoming_courses():
     
     print(f"🔔 檢查即將開始的課程: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}")
     
-    # 發送系統檢查通知給管理員
-    try:
-        admin_message = f"🔍 系統檢查通知\n\n"
-        admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
-        admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
-        send_admin_notification(admin_message, "system")
-    except Exception as e:
-        print(f"發送系統檢查通知失敗: {e}")
+    # 發送系統檢查通知給管理員（根據設定決定）
+    if should_send_notification('enable_system_check_notifications'):
+        try:
+            admin_message = f"🔍 系統檢查通知\n\n"
+            admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
+            admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
+            send_admin_notification(admin_message, "system")
+        except Exception as e:
+            print(f"發送系統檢查通知失敗: {e}")
+    else:
+        print("ℹ️ 系統檢查通知已停用")
     
     # 檢查測試模式設定
     test_mode = False
@@ -1535,7 +1547,10 @@ def load_system_config():
                 },
                 "notification_settings": {
                     "daily_summary_time": "08:00",
-                    "evening_reminder_time": "19:00"
+                    "evening_reminder_time": "19:00",
+                    "enable_system_check_notifications": False,
+                    "enable_upload_completion_notifications": False,
+                    "enable_no_courses_notifications": False
                 }
             }
             return default_config
@@ -1549,9 +1564,22 @@ def load_system_config():
             },
             "notification_settings": {
                 "daily_summary_time": "08:00",
-                "evening_reminder_time": "19:00"
+                "evening_reminder_time": "19:00",
+                "enable_system_check_notifications": False,
+                "enable_upload_completion_notifications": False,
+                "enable_no_courses_notifications": False
             }
         }
+
+def should_send_notification(notification_type):
+    """檢查是否應該發送特定類型的通知"""
+    try:
+        config = load_system_config()
+        notification_settings = config.get('notification_settings', {})
+        return notification_settings.get(notification_type, False)
+    except Exception as e:
+        print(f"檢查通知設定失敗: {e}")
+        return False
 
 def start_scheduler():
     """啟動定時任務"""

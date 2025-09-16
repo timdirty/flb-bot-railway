@@ -6,6 +6,9 @@
   },
   "notification_settings": {
     "daily_summary_time": "07:30",
-    "evening_reminder_time": "18:30"
+    "evening_reminder_time": "18:30",
+    "enable_system_check_notifications": false,
+    "enable_upload_completion_notifications": false,
+    "enable_no_courses_notifications": false
   }
 }
