@@ -1685,7 +1685,7 @@ def api_get_next_check_time():
 def api_force_check():
     """強制檢查行事曆"""
     try:
-        from main_fixed import check_upcoming_courses
+        from main import check_upcoming_courses
         
         # 執行強制檢查
         check_upcoming_courses()
@@ -1701,7 +1701,7 @@ def api_force_check():
 def api_upload_weekly_calendar():
     """手動上傳當週行事曆到 Google Sheet"""
     try:
-        from main_fixed import upload_weekly_calendar_to_sheet
+        from main import upload_weekly_calendar_to_sheet
         
         # 執行上傳
         upload_weekly_calendar_to_sheet()
@@ -1868,7 +1868,7 @@ def start_scheduler():
     """啟動定時任務"""
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
-        from main_fixed import morning_summary, check_tomorrow_courses_new, check_upcoming_courses
+        from main import morning_summary, check_tomorrow_courses_new, check_upcoming_courses
         
         print("🚀 啟動定時任務...")
         scheduler = BackgroundScheduler()
