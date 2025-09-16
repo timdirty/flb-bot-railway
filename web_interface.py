@@ -1819,6 +1819,51 @@ def api_trigger_tomorrow_check():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+@app.route('/api/auto_select_teacher', methods=['POST'])
+def api_auto_select_teacher():
+    """根據使用者 ID 自動選擇講師（與 main.py 中的端點一致）"""
+    try:
+        from main import TeacherManager
+        
+        data = request.get_json()
+        user_id = data.get('user_id')
+        
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "message": "缺少 user_id 參數",
+                "timestamp": datetime.now().isoformat()
+            }), 400
+        
+        print(f"🔍 自動選擇講師，使用者 ID: {user_id}")
+        
+        # 使用講師管理器進行自動選擇
+        teacher_manager = TeacherManager()
+        result = teacher_manager.auto_select_teacher_by_user_id(user_id)
+        
+        if result:
+            return jsonify({
+                "success": True,
+                "message": "自動選擇講師成功",
+                "data": result,
+                "timestamp": datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "無法找到匹配的講師",
+                "data": None,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+    except Exception as e:
+        print(f"❌ 自動選擇講師失敗: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"自動選擇講師失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 def start_scheduler():
     """啟動定時任務"""
     try:

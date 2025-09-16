@@ -253,6 +253,112 @@ class TeacherManager:
         print(f"📋 通知對象: {recipients}")
         return recipients
     
+    def get_teacher_list_from_api(self) -> Dict[str, str]:
+        """
+        從 Google Apps Script API 獲取講師列表
+        
+        Returns:
+            Dict[str, str]: {講師名稱: user_id} 的字典
+        """
+        try:
+            url = "https://script.google.com/macros/s/AKfycbyDKCdRNc7oulsTOfvb9v2xW242stGb1Ckl4TmsrZHfp8JJQU7ZP6dUmi8ty_M1WSxboQ/exec?action=listBindings&limit=50&offset=0"
+            
+            headers = {
+                'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3RZrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"📡 API 回應: {data}")
+                
+                # 解析 API 回應，提取講師資訊
+                teachers = {}
+                if 'data' in data:
+                    for item in data['data']:
+                        if 'teacherName' in item and 'userId' in item:
+                            teacher_name = item['teacherName'].strip().upper()
+                            user_id = item['userId'].strip()
+                            teachers[teacher_name] = user_id
+                
+                print(f"✅ 從 API 獲取到 {len(teachers)} 位講師")
+                return teachers
+            else:
+                print(f"❌ API 請求失敗: {response.status_code}")
+                return {}
+                
+        except Exception as e:
+            print(f"❌ 獲取講師列表失敗: {e}")
+            return {}
+    
+    def match_user_id_to_teacher(self, user_id: str) -> Optional[Tuple[str, str]]:
+        """
+        根據使用者 ID 比對講師名稱
+        
+        Args:
+            user_id: 使用者 ID
+            
+        Returns:
+            Optional[Tuple[str, str]]: (講師名稱, user_id) 或 None
+        """
+        try:
+            # 從 API 獲取講師列表
+            api_teachers = self.get_teacher_list_from_api()
+            
+            if not api_teachers:
+                print("❌ 無法從 API 獲取講師列表")
+                return None
+            
+            # 直接比對 user_id
+            for teacher_name, teacher_user_id in api_teachers.items():
+                if teacher_user_id == user_id:
+                    print(f"✅ 找到匹配的講師: {teacher_name} (ID: {user_id})")
+                    return (teacher_name, user_id)
+            
+            print(f"❌ 找不到匹配的講師，使用者 ID: {user_id}")
+            print(f"🔍 可用的講師 ID: {list(api_teachers.values())}")
+            return None
+            
+        except Exception as e:
+            print(f"❌ 比對講師失敗: {e}")
+            return None
+    
+    def auto_select_teacher_by_user_id(self, user_id: str) -> Optional[Dict[str, str]]:
+        """
+        根據使用者 ID 自動選擇講師並跳轉到第二步驟
+        
+        Args:
+            user_id: 使用者 ID
+            
+        Returns:
+            Optional[Dict[str, str]]: 講師資訊字典或 None
+        """
+        try:
+            # 比對講師
+            match_result = self.match_user_id_to_teacher(user_id)
+            
+            if match_result:
+                teacher_name, teacher_user_id = match_result
+                
+                # 構建講師資訊
+                teacher_info = {
+                    'teacher_name': teacher_name,
+                    'user_id': teacher_user_id,
+                    'matched': True,
+                    'message': f"✅ 自動匹配成功: {teacher_name}"
+                }
+                
+                print(f"🎯 自動選擇講師: {teacher_info}")
+                return teacher_info
+            else:
+                print("❌ 無法自動匹配講師，不跳轉到第二步驟")
+                return None
+                
+        except Exception as e:
+            print(f"❌ 自動選擇講師失敗: {e}")
+            return None
+
     def test_teacher_matching(self, test_names: List[str]) -> None:
         """
         測試老師名稱比對功能
