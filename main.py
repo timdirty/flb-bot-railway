@@ -747,7 +747,6 @@ def morning_summary():
                     print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
         else:
             print("ℹ️ 沒有課程時的通知已停用")
-                
     except Exception as e:
         print(f"❌ 發送今日總覽失敗: {e}")
 
