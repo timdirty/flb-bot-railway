@@ -210,9 +210,12 @@
             <div class="tab-pane fade show active" id="teachers" role="tabpanel">
                 <div class="card mt-3">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-users"></i> 老師資料管理
-                        </h5>
+                        <div>
+                            <h5 class="mb-0">
+                                <i class="fas fa-users"></i> 老師資料管理
+                            </h5>
+                            <small class="text-muted">直接讀取 teacher_data.json 文件</small>
+                        </div>
                         <button class="btn btn-sm btn-outline-primary" onclick="refreshTeachers()">
                             <i class="fas fa-sync"></i> 重新載入
                         </button>
@@ -818,6 +821,7 @@
             loadTestModeStatus(); // 載入測試模式狀態
             loadSystemConfig(); // 載入系統設定
             loadTeacherManagement(); // 載入講師管理資料
+            refreshTeachers(); // 載入老師資料（直接從teacher_data.json）
             initializeDateFilter(); // 初始化日期篩選器
             
             // 設定定時更新
@@ -1203,7 +1207,7 @@
             }
         }
 
-        // 重新載入老師資料
+        // 重新載入老師資料（直接從講師管理API讀取）
         async function refreshTeachers() {
             const btn = event.target;
             const originalText = btn.innerHTML;
@@ -1215,11 +1219,12 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 載入中...';
                 container.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">載入中...</span></div><p class="mt-2">載入老師資料中...</p></div>';
                 
-                const response = await fetch('/api/teachers');
+                // 直接從講師管理API讀取資料
+                const response = await fetch('/api/teacher_management');
                 const data = await response.json();
                 
                 if (data.success) {
-                    displayTeachers(data.data);
+                    displayTeachersFromTeacherData(data.teachers);
                     showNotification('老師資料載入成功', 'success');
                 } else {
                     container.innerHTML = `<div class="alert alert-danger">載入失敗: ${data.message}</div>`;
@@ -1236,7 +1241,61 @@
             }
         }
 
-        // 顯示老師資料
+        // 顯示老師資料（從teacher_data.json格式）
+        function displayTeachersFromTeacherData(teachers) {
+            const container = document.getElementById('teachers-list');
+            
+            if (!teachers || typeof teachers !== 'object') {
+                container.innerHTML = '<div class="alert alert-info">沒有找到老師資料</div>';
+                return;
+            }
+
+            // 將物件轉換為陣列
+            const teacherArray = Object.entries(teachers).map(([name, user_id]) => ({
+                name: name,
+                user_id: user_id,
+                has_user_id: !!user_id && user_id.trim() !== '',
+                status: (user_id && user_id.trim() !== '') ? '已設定' : '未設定',
+                last_updated: new Date().toLocaleString('zh-TW')
+            }));
+
+            if (teacherArray.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">沒有找到老師資料</div>';
+                return;
+            }
+
+            // 按狀態排序：有 user_id 的在前
+            teacherArray.sort((a, b) => {
+                if (a.has_user_id && !b.has_user_id) return -1;
+                if (!a.has_user_id && b.has_user_id) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            let html = '';
+            teacherArray.forEach(teacher => {
+                const statusClass = teacher.has_user_id ? 'success' : 'secondary';
+                const statusText = teacher.has_user_id ? '已設定' : '未設定';
+                
+                html += `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card teacher-card">
+                            <div class="card-body">
+                                <h6 class="card-title">${teacher.name}</h6>
+                                <p class="card-text text-muted small">${teacher.user_id || '未設定'}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-${statusClass}">${statusText}</span>
+                                    <small class="text-muted">${teacher.last_updated}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 顯示老師資料（舊版本，保留向後兼容）
         function displayTeachers(teachers) {
             const container = document.getElementById('teachers-list');
             
