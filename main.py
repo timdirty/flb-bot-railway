@@ -461,31 +461,31 @@ def upload_weekly_calendar_to_sheet():
             try:
                 if response.status_code == 200:
                     try:
-                    result = response.json()
+                        result = response.json()
                         print(f"📄 API 回應: {result}")  # 添加詳細的 API 回應日誌
                         
-                    if result.get('success'):
-                        uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
-                        print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
-                        
+                        if result.get('success'):
+                            uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
+                            print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
+                            
                             # 發送成功通知（根據設定決定）
                             if should_send_notification('enable_upload_completion_notifications'):
-                        admin_message = f"📊 當週行事曆上傳完成\n\n"
-                        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
-                        admin_message += f"📈 總項目數: {len(calendar_items)}\n"
-                        admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
-                        admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
-                        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                        send_admin_notification(admin_message, "system")
-                    else:
+                                admin_message = f"📊 當週行事曆上傳完成\n\n"
+                                admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+                                admin_message += f"📈 總項目數: {len(calendar_items)}\n"
+                                admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
+                                admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
+                                admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                                send_admin_notification(admin_message, "system")
+                            else:
                                 print("ℹ️ 上傳完成通知已停用")
                         else:
                             error_msg = result.get('message', '未知錯誤')
                             print(f"❌ 批量上傳失敗: {error_msg}")
                             print(f"📄 完整回應: {result}")
                             
-                        # 發送失敗通知
-                        error_message = f"❌ 批量上傳失敗\n\n"
+                            # 發送失敗通知
+                            error_message = f"❌ 批量上傳失敗\n\n"
                             error_message += f"❌ 錯誤: {error_msg}\n"
                             error_message += f"📄 完整回應: {json.dumps(result, ensure_ascii=False, indent=2)}\n"
                             error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
