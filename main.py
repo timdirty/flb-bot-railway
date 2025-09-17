@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from caldav import DAVClient
-from flask import Flask
+from flask import Flask, request
 from icalendar import Calendar
 from linebot.v3.messaging import (
     MessagingApi,
@@ -699,14 +699,16 @@ def morning_summary():
                     admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
                     admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
                     if course.get('location'):
-                        admin_message += f"   📍 {course['location']}\n"
+                        formatted_location = format_location_with_map_link(course['location'])
+                        admin_message += f"   {formatted_location}\n"
                     admin_message += f"   📝 {course['summary']}\n\n"
                 else:
                     # 舊格式（來自物件解析）
                     admin_message += f"{i}. {course.get('course_type', '未知課程')} - {course.get('teacher', '未知老師')}\n"
                     admin_message += f"   ⏰ {course.get('start_time', '未知時間')}-{course.get('end_time', '未知時間')}\n"
                     if course.get('location'):
-                        admin_message += f"   📍 {course['location']}\n"
+                        formatted_location = format_location_with_map_link(course['location'])
+                        admin_message += f"   {formatted_location}\n"
                     admin_message += f"   📝 {course.get('title', course.get('summary', '無標題'))}\n\n"
         else:
             admin_message = f"🌅 早安！今天是 {today.strftime('%Y年%m月%d日')}\n\n📚 今日課程總覽\n📚 今天沒有安排課程"
@@ -731,6 +733,40 @@ def morning_summary():
                 
     except Exception as e:
         print(f"❌ 發送今日總覽失敗: {e}")
+
+def format_location_with_map_link(location):
+    """格式化地址並添加地圖跳轉連結"""
+    if not location or location.strip() == '':
+        return ''
+    
+    location = location.strip()
+    
+    # 特殊地址映射
+    special_locations = {
+        '站前教室': '台北市中正區開封街2號9樓',
+        '站前': '台北市中正區開封街2號9樓',
+        '松山': '台北市松山區',
+        '到府': '到府教學',
+        '線上': '線上課程'
+    }
+    
+    # 檢查是否為特殊地址
+    for key, mapped_address in special_locations.items():
+        if key in location:
+            if key in ['到府', '線上']:
+                return f"📍 {location}"
+            else:
+                # 生成 Google Maps 連結
+                maps_url = f"https://www.google.com/maps/search/?api=1&query={mapped_address}"
+                return f"📍 {location}\n🗺️ 地圖: {maps_url}"
+    
+    # 如果地址包含完整地址資訊，生成地圖連結
+    if any(keyword in location for keyword in ['台北市', '新北市', '桃園市', '台中市', '台南市', '高雄市']):
+        maps_url = f"https://www.google.com/maps/search/?api=1&query={location}"
+        return f"📍 {location}\n🗺️ 地圖: {maps_url}"
+    
+    # 其他情況直接顯示地址
+    return f"📍 {location}"
 
 def parse_course_info(title, description):
     """解析課程資訊"""
@@ -933,7 +969,8 @@ def check_today_courses():
                 admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
                 admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
                 if course['location']:
-                    admin_message += f"   📍 {course['location']}\n"
+                    formatted_location = format_location_with_map_link(course['location'])
+                    admin_message += f"   {formatted_location}\n"
                 admin_message += f"   📝 {course['summary']}\n\n"
         else:
             admin_message = f"☀️ 當日課程提醒\n\n📅 日期: {today.strftime('%Y年%m月%d日')}\n📚 今天沒有安排課程"
@@ -961,7 +998,8 @@ def check_today_courses():
                         personal_message += f"{i}. {course['course_type']}\n"
                         personal_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
                         if course['location']:
-                            personal_message += f"   📍 {course['location']}\n"
+                            formatted_location = format_location_with_map_link(course['location'])
+                            personal_message += f"   {formatted_location}\n"
                         personal_message += f"   📝 {course['summary']}\n\n"
                     
                     # 發送給講師
@@ -1135,7 +1173,8 @@ def check_tomorrow_courses_new():
                 admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
                 admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
                 if course['location']:
-                    admin_message += f"   📍 {course['location']}\n"
+                    formatted_location = format_location_with_map_link(course['location'])
+                    admin_message += f"   {formatted_location}\n"
                 admin_message += f"   📝 {course['summary']}\n\n"
         else:
             admin_message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 明天沒有安排課程"
@@ -1163,7 +1202,8 @@ def check_tomorrow_courses_new():
                         personal_message += f"{i}. {course['course_type']}\n"
                         personal_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
                         if course['location']:
-                            personal_message += f"   📍 {course['location']}\n"
+                            formatted_location = format_location_with_map_link(course['location'])
+                            personal_message += f"   {formatted_location}\n"
                         personal_message += f"   📝 {course['summary']}\n\n"
                     
                     # 發送給講師
@@ -1516,7 +1556,8 @@ def check_upcoming_courses():
                             
                             # 顯示地點資訊
                             if course.get('location') and course['location'] != 'nan' and course['location'].strip():
-                                message += f"📍 地點: {course['location']}\n"
+                                formatted_location = format_location_with_map_link(course['location'])
+                                message += f"{formatted_location}\n"
                             
                             # 顯示教案連結（優先使用提取的教案連結）
                             lesson_url = course.get('lesson_plan_url') or course.get('url')
@@ -1578,7 +1619,8 @@ def check_upcoming_courses():
                         
                         # 顯示地點資訊
                         if course.get('location') and course['location'] != 'nan' and course['location'].strip():
-                            message += f"📍 地點: {course['location']}\n"
+                            formatted_location = format_location_with_map_link(course['location'])
+                            message += f"{formatted_location}\n"
                         
                         # 顯示教案連結（優先使用提取的教案連結）
                         lesson_url = course.get('lesson_plan_url') or course.get('url')
