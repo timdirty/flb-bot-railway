@@ -621,7 +621,7 @@
                                 <button class="btn btn-primary me-2" onclick="loadTeacherManagement()">
                                     <i class="fas fa-sync"></i> 重新載入
                                 </button>
-                                <button class="btn btn-success" onclick="saveTeacherManagement()">
+                                <button class="btn btn-success" onclick="saveTeacherManagementManual()">
                                     <i class="fas fa-save"></i> 儲存變更
                                 </button>
                             </div>
@@ -2354,6 +2354,7 @@
             
             teacherData[name] = userId;
             renderTeachersList();
+            saveTeacherManagement(); // 自動儲存到後端
             showNotification('講師已新增', 'success');
         }
 
@@ -2372,6 +2373,7 @@
             
             teacherData[newName] = newUserId;
             renderTeachersList();
+            saveTeacherManagement(); // 自動儲存到後端
             showNotification('講師已更新', 'success');
         }
 
@@ -2381,6 +2383,7 @@
             
             delete teacherData[name];
             renderTeachersList();
+            saveTeacherManagement(); // 自動儲存到後端
             showNotification('講師已刪除', 'success');
         }
 
@@ -2394,6 +2397,7 @@
             
             specialMappings[key] = value;
             renderSpecialMappingsList();
+            saveTeacherManagement(); // 自動儲存到後端
             showNotification('特殊映射已新增', 'success');
         }
 
@@ -2412,6 +2416,7 @@
             
             specialMappings[newKey] = newValue;
             renderSpecialMappingsList();
+            saveTeacherManagement(); // 自動儲存到後端
             showNotification('特殊映射已更新', 'success');
         }
 
@@ -2421,11 +2426,40 @@
             
             delete specialMappings[key];
             renderSpecialMappingsList();
+            saveTeacherManagement(); // 自動儲存到後端
             showNotification('特殊映射已刪除', 'success');
         }
 
         // 儲存講師管理資料
         async function saveTeacherManagement() {
+            try {
+                const response = await fetch('/api/teacher_management', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        teachers: teacherData,
+                        special_mappings: specialMappings
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('講師管理資料已自動儲存');
+                } else {
+                    console.error('自動儲存失敗:', data.message);
+                    showNotification('自動儲存失敗: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('儲存講師管理資料失敗:', error);
+                showNotification('儲存講師管理資料失敗', 'error');
+            }
+        }
+
+        // 手動儲存講師管理資料（用於按鈕點擊）
+        async function saveTeacherManagementManual() {
             const btn = event.target;
             const originalText = btn.innerHTML;
             
