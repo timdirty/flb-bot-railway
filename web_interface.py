@@ -1831,6 +1831,69 @@ def api_trigger_tomorrow_check():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+# 講師管理相關API
+@app.route('/api/teacher_management')
+def api_teacher_management():
+    """獲取講師管理資料"""
+    try:
+        # 讀取講師資料
+        teacher_data = {}
+        if os.path.exists("teacher_data.json"):
+            with open("teacher_data.json", 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                teacher_data = data.get('teachers', {})
+        
+        # 讀取特殊映射設定
+        special_mappings = {}
+        if os.path.exists("special_mappings.json"):
+            with open("special_mappings.json", 'r', encoding='utf-8') as f:
+                special_mappings = json.load(f)
+        
+        return jsonify({
+            "success": True,
+            "teachers": teacher_data,
+            "special_mappings": special_mappings,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"獲取講師管理資料失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/teacher_management', methods=['POST'])
+def api_update_teacher_management():
+    """更新講師管理資料"""
+    try:
+        data = request.get_json()
+        teachers = data.get('teachers', {})
+        special_mappings = data.get('special_mappings', {})
+        
+        # 更新講師資料
+        teacher_data = {
+            "teachers": teachers,
+            "last_update": datetime.now().isoformat()
+        }
+        with open("teacher_data.json", 'w', encoding='utf-8') as f:
+            json.dump(teacher_data, f, ensure_ascii=False, indent=2)
+        
+        # 更新特殊映射
+        with open("special_mappings.json", 'w', encoding='utf-8') as f:
+            json.dump(special_mappings, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "success": True,
+            "message": "講師管理資料更新成功",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"更新講師管理資料失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 @app.route('/api/auto_select_teacher', methods=['POST'])
 def api_auto_select_teacher():
     """根據使用者 ID 自動選擇講師（與 main.py 中的端點一致）"""

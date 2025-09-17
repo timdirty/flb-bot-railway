@@ -264,12 +264,21 @@ def upload_weekly_calendar_to_sheet():
                                     teacher_name = "未知老師"
                                     print(f"🔍 使用行事曆名稱模糊比對講師: {calendar.name}")
                                     
-                                    # 特殊名稱映射（僅處理特殊情況）
-                                    special_mappings = {
-                                        "紫米": "Agnes",
-                                        "紫米 ": "Agnes",
-                                        "紫米  ": "Agnes"
-                                    }
+                                    # 特殊名稱映射（從文件讀取）
+                                    special_mappings = {}
+                                    try:
+                                        import os
+                                        if os.path.exists("special_mappings.json"):
+                                            with open("special_mappings.json", 'r', encoding='utf-8') as f:
+                                                special_mappings = json.load(f)
+                                    except Exception as e:
+                                        print(f"⚠️ 讀取特殊映射文件失敗: {e}")
+                                        # 使用預設映射
+                                        special_mappings = {
+                                            "紫米": "Agnes",
+                                            "紫米 ": "Agnes",
+                                            "紫米  ": "Agnes"
+                                        }
                                     
                                     # 檢查特殊映射
                                     print(f"🔍 檢查特殊映射，calendar.name: '{calendar.name}'")

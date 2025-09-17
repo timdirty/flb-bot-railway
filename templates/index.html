@@ -577,6 +577,58 @@
                     </div>
                 </div>
 
+                <!-- 講師管理 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chalkboard-teacher"></i> 講師管理
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- 講師資料庫管理 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">
+                                <i class="fas fa-users"></i> 講師資料庫
+                                <button class="btn btn-sm btn-success ms-2" onclick="addTeacher()">
+                                    <i class="fas fa-plus"></i> 新增講師
+                                </button>
+                            </h6>
+                            <div id="teachers-list" class="row">
+                                <!-- 講師列表將在這裡動態載入 -->
+                            </div>
+                        </div>
+
+                        <!-- 特殊映射管理 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">
+                                <i class="fas fa-exchange-alt"></i> 特殊映射設定
+                                <button class="btn btn-sm btn-success ms-2" onclick="addSpecialMapping()">
+                                    <i class="fas fa-plus"></i> 新增映射
+                                </button>
+                            </h6>
+                            <div id="special-mappings-list" class="row">
+                                <!-- 特殊映射列表將在這裡動態載入 -->
+                            </div>
+                        </div>
+
+                        <!-- 操作按鈕 -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">講師管理操作</h6>
+                                <p class="text-muted mb-0">修改講師資料後會立即生效</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary me-2" onclick="loadTeacherManagement()">
+                                    <i class="fas fa-sync"></i> 重新載入
+                                </button>
+                                <button class="btn btn-success" onclick="saveTeacherManagement()">
+                                    <i class="fas fa-save"></i> 儲存變更
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 操作按鈕 -->
                 <div class="card mt-3">
                     <div class="card-body">
@@ -765,6 +817,7 @@
             loadAdminConfig(); // 載入管理員設定
             loadTestModeStatus(); // 載入測試模式狀態
             loadSystemConfig(); // 載入系統設定
+            loadTeacherManagement(); // 載入講師管理資料
             initializeDateFilter(); // 初始化日期篩選器
             
             // 設定定時更新
@@ -2206,6 +2259,204 @@
             } else {
                 container.style.display = 'none';
                 btn.innerHTML = '<i class="fas fa-eye"></i> 顯示日誌';
+            }
+        }
+
+        // 講師管理相關功能
+        let teacherData = {};
+        let specialMappings = {};
+
+        // 載入講師管理資料
+        async function loadTeacherManagement() {
+            try {
+                const response = await fetch('/api/teacher_management');
+                const data = await response.json();
+                
+                if (data.success) {
+                    teacherData = data.teachers || {};
+                    specialMappings = data.special_mappings || {};
+                    
+                    renderTeachersList();
+                    renderSpecialMappingsList();
+                    
+                    showNotification('講師管理資料載入成功', 'success');
+                } else {
+                    showNotification('載入講師管理資料失敗', 'error');
+                }
+            } catch (error) {
+                console.error('載入講師管理資料失敗:', error);
+                showNotification('載入講師管理資料失敗', 'error');
+            }
+        }
+
+        // 渲染講師列表
+        function renderTeachersList() {
+            const container = document.getElementById('teachers-list');
+            container.innerHTML = '';
+
+            Object.entries(teacherData).forEach(([name, userId]) => {
+                const teacherCard = document.createElement('div');
+                teacherCard.className = 'col-md-6 col-lg-4 mb-3';
+                teacherCard.innerHTML = `
+                    <div class="card teacher-card">
+                        <div class="card-body">
+                            <h6 class="card-title">${name}</h6>
+                            <p class="card-text text-muted small">${userId}</p>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="editTeacher('${name}', '${userId}')">
+                                    <i class="fas fa-edit"></i> 編輯
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteTeacher('${name}')">
+                                    <i class="fas fa-trash"></i> 刪除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(teacherCard);
+            });
+        }
+
+        // 渲染特殊映射列表
+        function renderSpecialMappingsList() {
+            const container = document.getElementById('special-mappings-list');
+            container.innerHTML = '';
+
+            Object.entries(specialMappings).forEach(([key, value]) => {
+                const mappingCard = document.createElement('div');
+                mappingCard.className = 'col-md-6 col-lg-4 mb-3';
+                mappingCard.innerHTML = `
+                    <div class="card teacher-card">
+                        <div class="card-body">
+                            <h6 class="card-title">${key} → ${value}</h6>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="editSpecialMapping('${key}', '${value}')">
+                                    <i class="fas fa-edit"></i> 編輯
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteSpecialMapping('${key}')">
+                                    <i class="fas fa-trash"></i> 刪除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(mappingCard);
+            });
+        }
+
+        // 新增講師
+        function addTeacher() {
+            const name = prompt('請輸入講師名稱:');
+            if (!name) return;
+            
+            const userId = prompt('請輸入講師的 LINE User ID:');
+            if (!userId) return;
+            
+            teacherData[name] = userId;
+            renderTeachersList();
+            showNotification('講師已新增', 'success');
+        }
+
+        // 編輯講師
+        function editTeacher(oldName, oldUserId) {
+            const newName = prompt('請輸入新的講師名稱:', oldName);
+            if (!newName) return;
+            
+            const newUserId = prompt('請輸入新的 LINE User ID:', oldUserId);
+            if (!newUserId) return;
+            
+            // 如果名稱改變，先刪除舊的
+            if (newName !== oldName) {
+                delete teacherData[oldName];
+            }
+            
+            teacherData[newName] = newUserId;
+            renderTeachersList();
+            showNotification('講師已更新', 'success');
+        }
+
+        // 刪除講師
+        function deleteTeacher(name) {
+            if (!confirm(`確定要刪除講師 "${name}" 嗎？`)) return;
+            
+            delete teacherData[name];
+            renderTeachersList();
+            showNotification('講師已刪除', 'success');
+        }
+
+        // 新增特殊映射
+        function addSpecialMapping() {
+            const key = prompt('請輸入要映射的關鍵字:');
+            if (!key) return;
+            
+            const value = prompt('請輸入映射到的講師名稱:');
+            if (!value) return;
+            
+            specialMappings[key] = value;
+            renderSpecialMappingsList();
+            showNotification('特殊映射已新增', 'success');
+        }
+
+        // 編輯特殊映射
+        function editSpecialMapping(oldKey, oldValue) {
+            const newKey = prompt('請輸入新的關鍵字:', oldKey);
+            if (!newKey) return;
+            
+            const newValue = prompt('請輸入新的講師名稱:', oldValue);
+            if (!newValue) return;
+            
+            // 如果關鍵字改變，先刪除舊的
+            if (newKey !== oldKey) {
+                delete specialMappings[oldKey];
+            }
+            
+            specialMappings[newKey] = newValue;
+            renderSpecialMappingsList();
+            showNotification('特殊映射已更新', 'success');
+        }
+
+        // 刪除特殊映射
+        function deleteSpecialMapping(key) {
+            if (!confirm(`確定要刪除特殊映射 "${key}" 嗎？`)) return;
+            
+            delete specialMappings[key];
+            renderSpecialMappingsList();
+            showNotification('特殊映射已刪除', 'success');
+        }
+
+        // 儲存講師管理資料
+        async function saveTeacherManagement() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
+                
+                const response = await fetch('/api/teacher_management', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        teachers: teacherData,
+                        special_mappings: specialMappings
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('講師管理資料已儲存', 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('儲存講師管理資料失敗:', error);
+                showNotification('儲存講師管理資料失敗', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         }
     </script>
