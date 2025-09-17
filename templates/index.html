@@ -216,9 +216,14 @@
                             </h5>
                             <small class="text-muted">直接讀取 teacher_data.json 文件</small>
                         </div>
-                        <button class="btn btn-sm btn-outline-primary" onclick="refreshTeachers()">
-                            <i class="fas fa-sync"></i> 重新載入
-                        </button>
+                        <div>
+                            <button class="btn btn-sm btn-success me-2" onclick="addTeacherDirect()">
+                                <i class="fas fa-plus"></i> 新增講師
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshTeachers()">
+                                <i class="fas fa-sync"></i> 重新載入
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div id="teachers-list">
@@ -1241,9 +1246,15 @@
             }
         }
 
+        // 全域變數儲存當前講師資料
+        let currentTeacherData = {};
+
         // 顯示老師資料（從teacher_data.json格式）
         function displayTeachersFromTeacherData(teachers) {
             const container = document.getElementById('teachers-list');
+            
+            // 儲存到全域變數供編輯使用
+            currentTeacherData = teachers || {};
             
             if (!teachers || typeof teachers !== 'object') {
                 container.innerHTML = '<div class="alert alert-info">沒有找到老師資料</div>';
@@ -1272,7 +1283,7 @@
             });
 
             let html = '';
-            teacherArray.forEach(teacher => {
+            teacherArray.forEach((teacher, index) => {
                 const statusClass = teacher.has_user_id ? 'success' : 'secondary';
                 const statusText = teacher.has_user_id ? '已設定' : '未設定';
                 
@@ -1280,7 +1291,17 @@
                     <div class="col-md-6 col-lg-4 mb-3">
                         <div class="card teacher-card">
                             <div class="card-body">
-                                <h6 class="card-title">${teacher.name}</h6>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-0">${teacher.name}</h6>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editTeacherDirect(${index})" title="編輯">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteTeacherDirect(${index})" title="刪除">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <p class="card-text text-muted small">${teacher.user_id || '未設定'}</p>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="badge bg-${statusClass}">${statusText}</span>
@@ -1293,6 +1314,105 @@
             });
 
             container.innerHTML = html;
+        }
+
+        // 直接編輯講師資料
+        function editTeacherDirect(index) {
+            const teacherArray = Object.entries(currentTeacherData);
+            if (index >= teacherArray.length) {
+                showNotification('找不到指定的講師', 'error');
+                return;
+            }
+
+            const [name, user_id] = teacherArray[index];
+            
+            const newName = prompt('請輸入講師名稱:', name);
+            if (newName === null) return; // 用戶取消
+            
+            const newUserId = prompt('請輸入LINE User ID:', user_id || '');
+            if (newUserId === null) return; // 用戶取消
+            
+            // 如果名稱有變更，需要先刪除舊的，再添加新的
+            if (newName !== name) {
+                delete currentTeacherData[name];
+            }
+            
+            // 更新資料
+            currentTeacherData[newName] = newUserId.trim();
+            
+            // 儲存到後端
+            saveTeacherDataDirect();
+        }
+
+        // 直接刪除講師資料
+        function deleteTeacherDirect(index) {
+            const teacherArray = Object.entries(currentTeacherData);
+            if (index >= teacherArray.length) {
+                showNotification('找不到指定的講師', 'error');
+                return;
+            }
+
+            const [name, user_id] = teacherArray[index];
+            
+            if (!confirm(`確定要刪除講師「${name}」嗎？`)) {
+                return;
+            }
+            
+            // 刪除資料
+            delete currentTeacherData[name];
+            
+            // 儲存到後端
+            saveTeacherDataDirect();
+        }
+
+        // 直接新增講師資料
+        function addTeacherDirect() {
+            const name = prompt('請輸入講師名稱:');
+            if (!name || name.trim() === '') return; // 用戶取消或輸入空白
+            
+            const user_id = prompt('請輸入LINE User ID:');
+            if (user_id === null) return; // 用戶取消
+            
+            // 檢查名稱是否已存在
+            if (currentTeacherData[name.trim()]) {
+                showNotification('講師名稱已存在', 'error');
+                return;
+            }
+            
+            // 新增資料
+            currentTeacherData[name.trim()] = user_id.trim();
+            
+            // 儲存到後端
+            saveTeacherDataDirect();
+        }
+
+        // 直接儲存講師資料到後端
+        async function saveTeacherDataDirect() {
+            try {
+                const response = await fetch('/api/teacher_management', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        teachers: currentTeacherData,
+                        special_mappings: {} // 保持特殊映射不變
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('講師資料更新成功', 'success');
+                    // 重新載入顯示
+                    refreshTeachers();
+                } else {
+                    showNotification(`更新失敗: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('儲存講師資料失敗:', error);
+                showNotification(`儲存失敗: ${error.message}`, 'error');
+            }
         }
 
         // 顯示老師資料（舊版本，保留向後兼容）
