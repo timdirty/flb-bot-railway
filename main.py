@@ -285,10 +285,10 @@ def upload_weekly_calendar_to_sheet():
                                     if teacher_name == "未知老師":
                                         # 使用與測試每日摘要相同的匹配邏輯
                                         match_result = teacher_manager.fuzzy_match_teacher(calendar.name, threshold=0.6)
-                                            if match_result:
-                                                teacher_name = match_result[0]
+                                        if match_result:
+                                            teacher_name = match_result[0]
                                             print(f"✅ 模糊匹配成功: {calendar.name} -> {teacher_name}")
-                                            else:
+                                        else:
                                             print(f"❌ 無法從行事曆名稱匹配講師: {calendar.name}")
                                             # 顯示可用的講師列表用於調試
                                             teacher_data = teacher_manager.get_teacher_data()
