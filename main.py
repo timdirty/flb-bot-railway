@@ -285,10 +285,10 @@ def upload_weekly_calendar_to_sheet():
                                     if teacher_name == "未知老師":
                                         # 使用與測試每日摘要相同的匹配邏輯
                                         match_result = teacher_manager.fuzzy_match_teacher(calendar.name, threshold=0.6)
-                                        if match_result:
-                                            teacher_name = match_result[0]
+                                            if match_result:
+                                                teacher_name = match_result[0]
                                             print(f"✅ 模糊匹配成功: {calendar.name} -> {teacher_name}")
-                                        else:
+                                            else:
                                             print(f"❌ 無法從行事曆名稱匹配講師: {calendar.name}")
                                             # 顯示可用的講師列表用於調試
                                             teacher_data = teacher_manager.get_teacher_data()
@@ -341,19 +341,36 @@ def upload_weekly_calendar_to_sheet():
                                     formatted_time = f"{week_day} {time_str}"
                                     
                                     # 整理課別格式，其餘部分放到備注2
-                                    # 從 summary 中提取課程類型（如 SPM, ESM, SPIKE 等）
+                                    # 智慧識別課程類型
                                     course_type = "未知課程"  # 預設值
                                     remaining_summary = summary
                                     
-                                    # 提取課程類型（大寫字母組合）
-                                    course_match = re.search(r'([A-Z]+)', summary)
+                                    # 定義常見課程類型模式（按優先級排序）
+                                    course_patterns = [
+                                        # 完整課程名稱（包含數字）
+                                        r'(EV3\b)',  # EV3
+                                        r'(SPIKE\b)',  # SPIKE
+                                        r'(SPM\b)',   # SPM
+                                        r'(ESM\b)',   # ESM
+                                        r'(資訊課\d+)',  # 資訊課501, 資訊課401
+                                        r'(機器人\w*)',  # 機器人相關
+                                        r'(程式設計\w*)',  # 程式設計相關
+                                        # 基本課程類型（純字母）
+                                        r'([A-Z]{2,})',  # 其他大寫字母組合
+                                    ]
+                                    
+                                    # 嘗試匹配各種課程類型模式
+                                    for pattern in course_patterns:
+                                        course_match = re.search(pattern, summary)
                                     if course_match:
                                         course_type = course_match.group(1)
                                         # 移除已提取的課程類型，其餘部分放到備注2
                                         remaining_summary = summary.replace(course_type, '').strip()
+                                            print(f"✅ 識別到課程類型: {course_type} (來源: {summary})")
+                                            break
                                     
                                     # 如果沒有找到課程類型，顯示未知課程
-                                    if not course_match:
+                                    if course_type == "未知課程":
                                         print(f"⚠️ 未找到課程類型，使用預設值: {summary}")
                                     
                                     # 從剩餘內容中提取地點資訊（到府、外、松山等）
@@ -444,31 +461,31 @@ def upload_weekly_calendar_to_sheet():
             try:
                 if response.status_code == 200:
                     try:
-                        result = response.json()
+                    result = response.json()
                         print(f"📄 API 回應: {result}")  # 添加詳細的 API 回應日誌
                         
-                        if result.get('success'):
-                            uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
-                            print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
-                            
+                    if result.get('success'):
+                        uploaded_count = result.get('inserted', 0) + result.get('updated', 0)
+                        print(f"✅ 批量上傳成功！新增: {result.get('inserted', 0)}, 更新: {result.get('updated', 0)}")
+                        
                             # 發送成功通知（根據設定決定）
                             if should_send_notification('enable_upload_completion_notifications'):
-                                admin_message = f"📊 當週行事曆上傳完成\n\n"
-                                admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
-                                admin_message += f"📈 總項目數: {len(calendar_items)}\n"
-                                admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
-                                admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
-                                admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                                send_admin_notification(admin_message, "system")
-                            else:
+                        admin_message = f"📊 當週行事曆上傳完成\n\n"
+                        admin_message += f"📅 週期: {week_start.strftime('%Y-%m-%d')} 到 {week_end.strftime('%Y-%m-%d')}\n"
+                        admin_message += f"📈 總項目數: {len(calendar_items)}\n"
+                        admin_message += f"✅ 新增: {result.get('inserted', 0)}\n"
+                        admin_message += f"🔄 更新: {result.get('updated', 0)}\n"
+                        admin_message += f"⏰ 上傳時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        send_admin_notification(admin_message, "system")
+                    else:
                                 print("ℹ️ 上傳完成通知已停用")
                         else:
                             error_msg = result.get('message', '未知錯誤')
                             print(f"❌ 批量上傳失敗: {error_msg}")
                             print(f"📄 完整回應: {result}")
                             
-                            # 發送失敗通知
-                            error_message = f"❌ 批量上傳失敗\n\n"
+                        # 發送失敗通知
+                        error_message = f"❌ 批量上傳失敗\n\n"
                             error_message += f"❌ 錯誤: {error_msg}\n"
                             error_message += f"📄 完整回應: {json.dumps(result, ensure_ascii=False, indent=2)}\n"
                             error_message += f"⏰ 時間: {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -715,19 +732,19 @@ def morning_summary():
         
         # 發送完整總覽給所有管理員（根據設定決定）
         if today_courses or should_send_notification('enable_no_courses_notifications'):
-            for admin in admins:
-                try:
-                    admin_user_id = admin.get("admin_user_id")
-                    if admin_user_id and admin_user_id.startswith("U"):
-                        messaging_api.push_message(
-                            PushMessageRequest(
-                                to=admin_user_id,
+        for admin in admins:
+            try:
+                admin_user_id = admin.get("admin_user_id")
+                if admin_user_id and admin_user_id.startswith("U"):
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=admin_user_id,
                                 messages=[TextMessage(text=admin_message)]
-                            )
                         )
-                        print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
-                except Exception as e:
-                    print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
+                    )
+                    print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
+            except Exception as e:
+                print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
         else:
             print("ℹ️ 沒有課程時的通知已停用")
                 
@@ -1343,14 +1360,14 @@ def check_upcoming_courses():
     
     # 發送系統檢查通知給管理員（根據設定決定）
     if should_send_notification('enable_system_check_notifications'):
-        try:
-            admin_message = f"🔍 系統檢查通知\n\n"
-            admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
-            admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
-            send_admin_notification(admin_message, "system")
-        except Exception as e:
-            print(f"發送系統檢查通知失敗: {e}")
+    try:
+        admin_message = f"🔍 系統檢查通知\n\n"
+        admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
+        admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
+        send_admin_notification(admin_message, "system")
+    except Exception as e:
+        print(f"發送系統檢查通知失敗: {e}")
     else:
         print("ℹ️ 系統檢查通知已停用")
     
@@ -1804,13 +1821,13 @@ def trigger_course_check():
     """手動觸發課程檢查"""
     try:
         print("🔔 手動觸發課程檢查...")
-        check_upcoming_courses()
+                check_upcoming_courses()
         return {
             "success": True, 
             "message": "課程檢查已執行",
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
+            except Exception as e:
         print(f"❌ 觸發課程檢查失敗: {e}")
         return {
             "success": False, 
@@ -1823,13 +1840,13 @@ def trigger_calendar_upload():
     """手動觸發行事曆上傳"""
     try:
         print("📊 手動觸發行事曆上傳...")
-        upload_weekly_calendar_to_sheet()
+                upload_weekly_calendar_to_sheet()
         return {
             "success": True, 
             "message": "行事曆上傳已執行",
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
+            except Exception as e:
         print(f"❌ 觸發行事曆上傳失敗: {e}")
         return {
             "success": False, 
@@ -1848,7 +1865,7 @@ def trigger_today_check():
             "message": "當日課程檢查已執行",
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
+            except Exception as e:
         print(f"❌ 觸發當日課程檢查失敗: {e}")
         return {
             "success": False, 
@@ -1861,13 +1878,13 @@ def trigger_tomorrow_check():
     """觸發隔天課程檢查"""
     try:
         print("🌙 觸發隔天課程檢查...")
-        check_tomorrow_courses_new()
+                check_tomorrow_courses_new()
         return {
             "success": True, 
             "message": "隔天課程檢查已執行",
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
+            except Exception as e:
         print(f"❌ 觸發隔天課程檢查失敗: {e}")
         return {
             "success": False, 
