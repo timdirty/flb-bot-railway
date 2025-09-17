@@ -2294,7 +2294,7 @@
             const container = document.getElementById('teachers-list');
             container.innerHTML = '';
 
-            Object.entries(teacherData).forEach(([name, userId]) => {
+            Object.entries(teacherData).forEach(([name, userId], index) => {
                 const teacherCard = document.createElement('div');
                 teacherCard.className = 'col-md-6 col-lg-4 mb-3';
                 teacherCard.innerHTML = `
@@ -2303,10 +2303,10 @@
                             <h6 class="card-title">${name}</h6>
                             <p class="card-text text-muted small">${userId}</p>
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-primary" onclick="editTeacher('${name}', '${userId}')">
+                                <button class="btn btn-outline-primary" onclick="editTeacherByIndex(${index})">
                                     <i class="fas fa-edit"></i> 編輯
                                 </button>
-                                <button class="btn btn-outline-danger" onclick="deleteTeacher('${name}')">
+                                <button class="btn btn-outline-danger" onclick="deleteTeacherByIndex(${index})">
                                     <i class="fas fa-trash"></i> 刪除
                                 </button>
                             </div>
@@ -2322,7 +2322,7 @@
             const container = document.getElementById('special-mappings-list');
             container.innerHTML = '';
 
-            Object.entries(specialMappings).forEach(([key, value]) => {
+            Object.entries(specialMappings).forEach(([key, value], index) => {
                 const mappingCard = document.createElement('div');
                 mappingCard.className = 'col-md-6 col-lg-4 mb-3';
                 mappingCard.innerHTML = `
@@ -2330,10 +2330,10 @@
                         <div class="card-body">
                             <h6 class="card-title">${key} → ${value}</h6>
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-primary" onclick="editSpecialMapping('${key}', '${value}')">
+                                <button class="btn btn-outline-primary" onclick="editSpecialMappingByIndex(${index})">
                                     <i class="fas fa-edit"></i> 編輯
                                 </button>
-                                <button class="btn btn-outline-danger" onclick="deleteSpecialMapping('${key}')">
+                                <button class="btn btn-outline-danger" onclick="deleteSpecialMappingByIndex(${index})">
                                     <i class="fas fa-trash"></i> 刪除
                                 </button>
                             </div>
@@ -2358,7 +2358,44 @@
             showNotification('講師已新增', 'success');
         }
 
-        // 編輯講師
+        // 編輯講師（基於索引）
+        function editTeacherByIndex(index) {
+            const entries = Object.entries(teacherData);
+            if (index >= entries.length) return;
+            
+            const [oldName, oldUserId] = entries[index];
+            const newName = prompt('請輸入新的講師名稱:', oldName);
+            if (!newName) return;
+            
+            const newUserId = prompt('請輸入新的 LINE User ID:', oldUserId);
+            if (!newUserId) return;
+            
+            // 如果名稱改變，先刪除舊的
+            if (newName !== oldName) {
+                delete teacherData[oldName];
+            }
+            
+            teacherData[newName] = newUserId;
+            renderTeachersList();
+            saveTeacherManagement(); // 自動儲存到後端
+            showNotification('講師已更新', 'success');
+        }
+
+        // 刪除講師（基於索引）
+        function deleteTeacherByIndex(index) {
+            const entries = Object.entries(teacherData);
+            if (index >= entries.length) return;
+            
+            const [name, userId] = entries[index];
+            if (!confirm(`確定要刪除講師 "${name}" 嗎？`)) return;
+            
+            delete teacherData[name];
+            renderTeachersList();
+            saveTeacherManagement(); // 自動儲存到後端
+            showNotification('講師已刪除', 'success');
+        }
+
+        // 編輯講師（舊版本，保留向後兼容）
         function editTeacher(oldName, oldUserId) {
             const newName = prompt('請輸入新的講師名稱:', oldName);
             if (!newName) return;
@@ -2377,7 +2414,7 @@
             showNotification('講師已更新', 'success');
         }
 
-        // 刪除講師
+        // 刪除講師（舊版本，保留向後兼容）
         function deleteTeacher(name) {
             if (!confirm(`確定要刪除講師 "${name}" 嗎？`)) return;
             
@@ -2401,7 +2438,44 @@
             showNotification('特殊映射已新增', 'success');
         }
 
-        // 編輯特殊映射
+        // 編輯特殊映射（基於索引）
+        function editSpecialMappingByIndex(index) {
+            const entries = Object.entries(specialMappings);
+            if (index >= entries.length) return;
+            
+            const [oldKey, oldValue] = entries[index];
+            const newKey = prompt('請輸入新的關鍵字:', oldKey);
+            if (!newKey) return;
+            
+            const newValue = prompt('請輸入新的講師名稱:', oldValue);
+            if (!newValue) return;
+            
+            // 如果關鍵字改變，先刪除舊的
+            if (newKey !== oldKey) {
+                delete specialMappings[oldKey];
+            }
+            
+            specialMappings[newKey] = newValue;
+            renderSpecialMappingsList();
+            saveTeacherManagement(); // 自動儲存到後端
+            showNotification('特殊映射已更新', 'success');
+        }
+
+        // 刪除特殊映射（基於索引）
+        function deleteSpecialMappingByIndex(index) {
+            const entries = Object.entries(specialMappings);
+            if (index >= entries.length) return;
+            
+            const [key, value] = entries[index];
+            if (!confirm(`確定要刪除特殊映射 "${key}" 嗎？`)) return;
+            
+            delete specialMappings[key];
+            renderSpecialMappingsList();
+            saveTeacherManagement(); // 自動儲存到後端
+            showNotification('特殊映射已刪除', 'success');
+        }
+
+        // 編輯特殊映射（舊版本，保留向後兼容）
         function editSpecialMapping(oldKey, oldValue) {
             const newKey = prompt('請輸入新的關鍵字:', oldKey);
             if (!newKey) return;
@@ -2420,7 +2494,7 @@
             showNotification('特殊映射已更新', 'success');
         }
 
-        // 刪除特殊映射
+        // 刪除特殊映射（舊版本，保留向後兼容）
         function deleteSpecialMapping(key) {
             if (!confirm(`確定要刪除特殊映射 "${key}" 嗎？`)) return;
             
