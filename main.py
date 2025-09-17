@@ -732,19 +732,19 @@ def morning_summary():
         
         # 發送完整總覽給所有管理員（根據設定決定）
         if today_courses or should_send_notification('enable_no_courses_notifications'):
-        for admin in admins:
-            try:
-                admin_user_id = admin.get("admin_user_id")
-                if admin_user_id and admin_user_id.startswith("U"):
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
+            for admin in admins:
+                try:
+                    admin_user_id = admin.get("admin_user_id")
+                    if admin_user_id and admin_user_id.startswith("U"):
+                        messaging_api.push_message(
+                            PushMessageRequest(
+                                to=admin_user_id,
                                 messages=[TextMessage(text=admin_message)]
+                            )
                         )
-                    )
-                    print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
-            except Exception as e:
-                print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
+                        print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
+                except Exception as e:
+                    print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
         else:
             print("ℹ️ 沒有課程時的通知已停用")
                 
@@ -1360,14 +1360,14 @@ def check_upcoming_courses():
     
     # 發送系統檢查通知給管理員（根據設定決定）
     if should_send_notification('enable_system_check_notifications'):
-    try:
-        admin_message = f"🔍 系統檢查通知\n\n"
-        admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
-        admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
-        send_admin_notification(admin_message, "system")
-    except Exception as e:
-        print(f"發送系統檢查通知失敗: {e}")
+        try:
+            admin_message = f"🔍 系統檢查通知\n\n"
+            admin_message += f"⏰ 檢查時間: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            admin_message += f"📅 檢查範圍: {now.strftime('%H:%M')} - {upcoming_end.strftime('%H:%M')}\n"
+            admin_message += f"🎯 檢查項目: 即將開始的課程提醒\n"
+            send_admin_notification(admin_message, "system")
+        except Exception as e:
+            print(f"發送系統檢查通知失敗: {e}")
     else:
         print("ℹ️ 系統檢查通知已停用")
     
