@@ -362,10 +362,10 @@ def upload_weekly_calendar_to_sheet():
                                     # 嘗試匹配各種課程類型模式
                                     for pattern in course_patterns:
                                         course_match = re.search(pattern, summary)
-                                    if course_match:
-                                        course_type = course_match.group(1)
-                                        # 移除已提取的課程類型，其餘部分放到備注2
-                                        remaining_summary = summary.replace(course_type, '').strip()
+                                        if course_match:
+                                            course_type = course_match.group(1)
+                                            # 移除已提取的課程類型，其餘部分放到備注2
+                                            remaining_summary = summary.replace(course_type, '').strip()
                                             print(f"✅ 識別到課程類型: {course_type} (來源: {summary})")
                                             break
                                     
