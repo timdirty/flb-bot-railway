@@ -1820,13 +1820,13 @@ def trigger_course_check():
     """手動觸發課程檢查"""
     try:
         print("🔔 手動觸發課程檢查...")
-                check_upcoming_courses()
+        check_upcoming_courses()
         return {
             "success": True, 
             "message": "課程檢查已執行",
             "timestamp": datetime.now().isoformat()
         }
-            except Exception as e:
+    except Exception as e:
         print(f"❌ 觸發課程檢查失敗: {e}")
         return {
             "success": False, 
@@ -1839,13 +1839,13 @@ def trigger_calendar_upload():
     """手動觸發行事曆上傳"""
     try:
         print("📊 手動觸發行事曆上傳...")
-                upload_weekly_calendar_to_sheet()
+        upload_weekly_calendar_to_sheet()
         return {
             "success": True, 
             "message": "行事曆上傳已執行",
             "timestamp": datetime.now().isoformat()
         }
-            except Exception as e:
+    except Exception as e:
         print(f"❌ 觸發行事曆上傳失敗: {e}")
         return {
             "success": False, 
@@ -1864,7 +1864,7 @@ def trigger_today_check():
             "message": "當日課程檢查已執行",
             "timestamp": datetime.now().isoformat()
         }
-            except Exception as e:
+    except Exception as e:
         print(f"❌ 觸發當日課程檢查失敗: {e}")
         return {
             "success": False, 
@@ -1877,13 +1877,13 @@ def trigger_tomorrow_check():
     """觸發隔天課程檢查"""
     try:
         print("🌙 觸發隔天課程檢查...")
-                check_tomorrow_courses_new()
+        check_tomorrow_courses_new()
         return {
             "success": True, 
             "message": "隔天課程檢查已執行",
             "timestamp": datetime.now().isoformat()
         }
-            except Exception as e:
+    except Exception as e:
         print(f"❌ 觸發隔天課程檢查失敗: {e}")
         return {
             "success": False, 
