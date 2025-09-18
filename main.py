@@ -661,11 +661,35 @@ def morning_summary():
                                     if teacher_name == "未知老師":
                                         teacher_name = calendar.name
                                     
-                                    # 提取課程類型
+                                    # 提取課程類型 - 使用智慧識別邏輯
                                     course_type = "未知課程"
-                                    course_match = re.search(r'([A-Z]+)', summary)
-                                    if course_match:
-                                        course_type = course_match.group(1)
+                                    remaining_summary = summary
+                                    
+                                    # 定義常見課程類型模式（按優先級排序）
+                                    course_patterns = [
+                                        # 完整課程名稱（包含數字）
+                                        r'(EV3\b)',  # EV3
+                                        r'(SPIKE\b)',  # SPIKE
+                                        r'(SPM\b)',   # SPM
+                                        r'(ESM\b)',   # ESM
+                                        r'(資訊課\d+)',  # 資訊課501, 資訊課401
+                                        r'(機器人\w*)',  # 機器人相關
+                                        r'(程式設計\w*)',  # 程式設計相關
+                                        # 基本課程類型（純字母）
+                                        r'([A-Z]{2,})',  # 其他大寫字母組合
+                                    ]
+                                    
+                                    # 嘗試匹配各種課程類型模式
+                                    for pattern in course_patterns:
+                                        course_match = re.search(pattern, summary)
+                                        if course_match:
+                                            course_type = course_match.group(1)
+                                            print(f"✅ 識別到課程類型: {course_type} (來源: {summary})")
+                                            break
+                                    
+                                    # 如果沒有找到課程類型，顯示未知課程
+                                    if course_type == "未知課程":
+                                        print(f"⚠️ 未找到課程類型，使用預設值: {summary}")
                                     
                                     today_courses.append({
                                         "summary": summary,
@@ -955,11 +979,35 @@ def check_today_courses():
                                     if teacher_name == "未知老師":
                                         teacher_name = calendar.name
                                     
-                                    # 提取課程類型
+                                    # 提取課程類型 - 使用智慧識別邏輯
                                     course_type = "未知課程"
-                                    course_match = re.search(r'([A-Z]+)', summary)
-                                    if course_match:
-                                        course_type = course_match.group(1)
+                                    remaining_summary = summary
+                                    
+                                    # 定義常見課程類型模式（按優先級排序）
+                                    course_patterns = [
+                                        # 完整課程名稱（包含數字）
+                                        r'(EV3\b)',  # EV3
+                                        r'(SPIKE\b)',  # SPIKE
+                                        r'(SPM\b)',   # SPM
+                                        r'(ESM\b)',   # ESM
+                                        r'(資訊課\d+)',  # 資訊課501, 資訊課401
+                                        r'(機器人\w*)',  # 機器人相關
+                                        r'(程式設計\w*)',  # 程式設計相關
+                                        # 基本課程類型（純字母）
+                                        r'([A-Z]{2,})',  # 其他大寫字母組合
+                                    ]
+                                    
+                                    # 嘗試匹配各種課程類型模式
+                                    for pattern in course_patterns:
+                                        course_match = re.search(pattern, summary)
+                                        if course_match:
+                                            course_type = course_match.group(1)
+                                            print(f"✅ 識別到課程類型: {course_type} (來源: {summary})")
+                                            break
+                                    
+                                    # 如果沒有找到課程類型，顯示未知課程
+                                    if course_type == "未知課程":
+                                        print(f"⚠️ 未找到課程類型，使用預設值: {summary}")
                                     
                                     today_courses.append({
                                         "summary": summary,
@@ -1159,11 +1207,35 @@ def check_tomorrow_courses_new():
                                     if teacher_name == "未知老師":
                                         teacher_name = calendar.name
                                     
-                                    # 提取課程類型
+                                    # 提取課程類型 - 使用智慧識別邏輯
                                     course_type = "未知課程"
-                                    course_match = re.search(r'([A-Z]+)', summary)
-                                    if course_match:
-                                        course_type = course_match.group(1)
+                                    remaining_summary = summary
+                                    
+                                    # 定義常見課程類型模式（按優先級排序）
+                                    course_patterns = [
+                                        # 完整課程名稱（包含數字）
+                                        r'(EV3\b)',  # EV3
+                                        r'(SPIKE\b)',  # SPIKE
+                                        r'(SPM\b)',   # SPM
+                                        r'(ESM\b)',   # ESM
+                                        r'(資訊課\d+)',  # 資訊課501, 資訊課401
+                                        r'(機器人\w*)',  # 機器人相關
+                                        r'(程式設計\w*)',  # 程式設計相關
+                                        # 基本課程類型（純字母）
+                                        r'([A-Z]{2,})',  # 其他大寫字母組合
+                                    ]
+                                    
+                                    # 嘗試匹配各種課程類型模式
+                                    for pattern in course_patterns:
+                                        course_match = re.search(pattern, summary)
+                                        if course_match:
+                                            course_type = course_match.group(1)
+                                            print(f"✅ 識別到課程類型: {course_type} (來源: {summary})")
+                                            break
+                                    
+                                    # 如果沒有找到課程類型，顯示未知課程
+                                    if course_type == "未知課程":
+                                        print(f"⚠️ 未找到課程類型，使用預設值: {summary}")
                                     
                                     tomorrow_courses.append({
                                         "summary": summary,
