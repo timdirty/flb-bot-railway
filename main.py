@@ -746,20 +746,28 @@ def morning_summary():
                 # 處理兩種資料格式
                 if 'course_type' in course and 'teacher' in course:
                     # 新格式（來自 iCalendar 字串解析）
-                    admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
-                    admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
-                    if course.get('location'):
-                        formatted_location = format_location_with_map_link(course['location'])
-                        admin_message += f"   {formatted_location}\n"
-                    admin_message += f"   📝 {course['summary']}\n\n"
+                    formatted_course, is_cancelled = format_course_with_cancellation_check(
+                        course['course_type'], 
+                        course['teacher'], 
+                        course['summary'], 
+                        course['start_time'], 
+                        course['end_time'], 
+                        course.get('location', ''), 
+                        course.get('calendar', '')
+                    )
+                    admin_message += f"{i}. {formatted_course}\n"
                 else:
                     # 舊格式（來自物件解析）
-                    admin_message += f"{i}. {course.get('course_type', '未知課程')} - {course.get('teacher', '未知老師')}\n"
-                    admin_message += f"   ⏰ {course.get('start_time', '未知時間')}-{course.get('end_time', '未知時間')}\n"
-                    if course.get('location'):
-                        formatted_location = format_location_with_map_link(course['location'])
-                        admin_message += f"   {formatted_location}\n"
-                    admin_message += f"   📝 {course.get('title', course.get('summary', '無標題'))}\n\n"
+                    formatted_course, is_cancelled = format_course_with_cancellation_check(
+                        course.get('course_type', '未知課程'), 
+                        course.get('teacher', '未知老師'), 
+                        course.get('title', course.get('summary', '無標題')), 
+                        course.get('start_time', '未知時間'), 
+                        course.get('end_time', '未知時間'), 
+                        course.get('location', ''), 
+                        course.get('calendar', '')
+                    )
+                    admin_message += f"{i}. {formatted_course}\n"
         else:
             admin_message = f"🌅 早安！今天是 {today.strftime('%Y年%m月%d日')}\n\n📚 今日課程總覽\n📚 今天沒有安排課程"
         
@@ -816,6 +824,53 @@ def format_location_with_map_link(location):
     
     # 其他情況直接顯示地址
     return f"📍 {location}"
+
+def check_cancellation_keywords(title, summary):
+    """檢查標題或摘要中是否包含停課關鍵字"""
+    if not title and not summary:
+        return False, None
+    
+    # 停課關鍵字列表
+    cancellation_keywords = ['請假', '停課', '取消', '暫停', '休息', '放假']
+    
+    # 檢查標題
+    if title:
+        for keyword in cancellation_keywords:
+            if keyword in title:
+                return True, keyword
+    
+    # 檢查摘要
+    if summary:
+        for keyword in cancellation_keywords:
+            if keyword in summary:
+                return True, keyword
+    
+    return False, None
+
+def format_course_with_cancellation_check(course_type, teacher, summary, start_time, end_time, location, calendar):
+    """格式化課程資訊，包含停課檢測"""
+    # 檢查是否為停課
+    is_cancelled, keyword = check_cancellation_keywords(summary, summary)
+    
+    if is_cancelled:
+        # 停課格式 - 使用明顯的標記
+        formatted_course = f"🚫 **停課通知** - {course_type} - {teacher}\n"
+        formatted_course += f"   ⏰ {start_time}-{end_time}\n"
+        formatted_course += f"   🚫 原因: {keyword}\n"
+        if location:
+            formatted_location = format_location_with_map_link(location)
+            formatted_course += f"   {formatted_location}\n"
+        formatted_course += f"   📝 {summary}\n"
+        return formatted_course, True
+    else:
+        # 正常課程格式
+        formatted_course = f"{course_type} - {teacher}\n"
+        formatted_course += f"   ⏰ {start_time}-{end_time}\n"
+        if location:
+            formatted_location = format_location_with_map_link(location)
+            formatted_course += f"   {formatted_location}\n"
+        formatted_course += f"   📝 {summary}\n"
+        return formatted_course, False
 
 def parse_course_info(title, description):
     """解析課程資訊"""
@@ -1039,12 +1094,16 @@ def check_today_courses():
             admin_message = f"☀️ 當日課程提醒\n\n📅 日期: {today.strftime('%Y年%m月%d日')}\n📚 共 {len(today_courses)} 堂課\n\n"
             
             for i, course in enumerate(today_courses, 1):
-                admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
-                admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
-                if course['location']:
-                    formatted_location = format_location_with_map_link(course['location'])
-                    admin_message += f"   {formatted_location}\n"
-                admin_message += f"   📝 {course['summary']}\n\n"
+                formatted_course, is_cancelled = format_course_with_cancellation_check(
+                    course['course_type'], 
+                    course['teacher'], 
+                    course['summary'], 
+                    course['start_time'], 
+                    course['end_time'], 
+                    course.get('location', ''), 
+                    course.get('calendar', '')
+                )
+                admin_message += f"{i}. {formatted_course}\n"
         else:
             admin_message = f"☀️ 當日課程提醒\n\n📅 日期: {today.strftime('%Y年%m月%d日')}\n📚 今天沒有安排課程"
         
@@ -1267,12 +1326,16 @@ def check_tomorrow_courses_new():
             admin_message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 共 {len(tomorrow_courses)} 堂課\n\n"
             
             for i, course in enumerate(tomorrow_courses, 1):
-                admin_message += f"{i}. {course['course_type']} - {course['teacher']}\n"
-                admin_message += f"   ⏰ {course['start_time']}-{course['end_time']}\n"
-                if course['location']:
-                    formatted_location = format_location_with_map_link(course['location'])
-                    admin_message += f"   {formatted_location}\n"
-                admin_message += f"   📝 {course['summary']}\n\n"
+                formatted_course, is_cancelled = format_course_with_cancellation_check(
+                    course['course_type'], 
+                    course['teacher'], 
+                    course['summary'], 
+                    course['start_time'], 
+                    course['end_time'], 
+                    course.get('location', ''), 
+                    course.get('calendar', '')
+                )
+                admin_message += f"{i}. {formatted_course}\n"
         else:
             admin_message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 明天沒有安排課程"
         
@@ -1645,11 +1708,22 @@ def check_upcoming_courses():
                 for teacher_user_id, teacher_data in teacher_courses.items():
                     for course in teacher_data['courses']:
                         try:
-                            message = f"🔔 課程即將開始！\n\n"
-                            message += f"📚 課程: {course['summary']}\n"
-                            message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
-                            message += f"👨‍🏫 老師: {course['teacher']}\n"
-                            message += f"📅 行事曆: {course['calendar']}\n"
+                            # 檢查是否為停課
+                            is_cancelled, keyword = check_cancellation_keywords(course['summary'], course['summary'])
+                            
+                            if is_cancelled:
+                                message = f"🚫 **停課通知**\n\n"
+                                message += f"📚 課程: {course['summary']}\n"
+                                message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                                message += f"👨‍🏫 老師: {course['teacher']}\n"
+                                message += f"📅 行事曆: {course['calendar']}\n"
+                                message += f"🚫 原因: {keyword}\n"
+                            else:
+                                message = f"🔔 課程即將開始！\n\n"
+                                message += f"📚 課程: {course['summary']}\n"
+                                message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                                message += f"👨‍🏫 老師: {course['teacher']}\n"
+                                message += f"📅 行事曆: {course['calendar']}\n"
                             
                             # 顯示地點資訊
                             if course.get('location') and course['location'] != 'nan' and course['location'].strip():
@@ -1708,11 +1782,22 @@ def check_upcoming_courses():
                 
                 for course in all_admin_courses:
                     try:
-                        message = f"🔔 課程即將開始！\n\n"
-                        message += f"📚 課程: {course['summary']}\n"
-                        message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
-                        message += f"👨‍🏫 老師: {course['teacher']}\n"
-                        message += f"📅 行事曆: {course['calendar']}\n"
+                        # 檢查是否為停課
+                        is_cancelled, keyword = check_cancellation_keywords(course['summary'], course['summary'])
+                        
+                        if is_cancelled:
+                            message = f"🚫 **停課通知**\n\n"
+                            message += f"📚 課程: {course['summary']}\n"
+                            message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                            message += f"👨‍🏫 老師: {course['teacher']}\n"
+                            message += f"📅 行事曆: {course['calendar']}\n"
+                            message += f"🚫 原因: {keyword}\n"
+                        else:
+                            message = f"🔔 課程即將開始！\n\n"
+                            message += f"📚 課程: {course['summary']}\n"
+                            message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                            message += f"👨‍🏫 老師: {course['teacher']}\n"
+                            message += f"📅 行事曆: {course['calendar']}\n"
                         
                         # 顯示地點資訊
                         if course.get('location') and course['location'] != 'nan' and course['location'].strip():
