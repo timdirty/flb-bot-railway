@@ -853,14 +853,17 @@ def format_course_with_cancellation_check(course_type, teacher, summary, start_t
     is_cancelled, keyword = check_cancellation_keywords(summary, summary)
     
     if is_cancelled:
-        # 停課格式 - 使用明顯的標記
-        formatted_course = f"🚫 **停課通知** - {course_type} - {teacher}\n"
-        formatted_course += f"   ⏰ {start_time}-{end_time}\n"
-        formatted_course += f"   🚫 原因: {keyword}\n"
+        # 停課格式 - 使用非常明顯的標記
+        formatted_course = f"🚫🚫🚫 **停課通知** 🚫🚫🚫\n"
+        formatted_course += f"⚠️⚠️⚠️ 課程已取消 ⚠️⚠️⚠️\n"
+        formatted_course += f"📚 課程: {course_type} - {teacher}\n"
+        formatted_course += f"⏰ 時間: {start_time}-{end_time}\n"
+        formatted_course += f"🚫 停課原因: {keyword}\n"
         if location:
             formatted_location = format_location_with_map_link(location)
             formatted_course += f"   {formatted_location}\n"
-        formatted_course += f"   📝 {summary}\n"
+        formatted_course += f"📝 備註: {summary}\n"
+        formatted_course += f"🚫🚫🚫 請勿前往上課 🚫🚫🚫\n"
         return formatted_course, True
     else:
         # 正常課程格式
@@ -1712,12 +1715,14 @@ def check_upcoming_courses():
                             is_cancelled, keyword = check_cancellation_keywords(course['summary'], course['summary'])
                             
                             if is_cancelled:
-                                message = f"🚫 **停課通知**\n\n"
+                                message = f"🚫🚫🚫 **停課通知** 🚫🚫🚫\n\n"
+                                message += f"⚠️⚠️⚠️ 課程已取消 ⚠️⚠️⚠️\n\n"
                                 message += f"📚 課程: {course['summary']}\n"
                                 message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
                                 message += f"👨‍🏫 老師: {course['teacher']}\n"
                                 message += f"📅 行事曆: {course['calendar']}\n"
-                                message += f"🚫 原因: {keyword}\n"
+                                message += f"🚫 停課原因: {keyword}\n\n"
+                                message += f"🚫🚫🚫 請勿前往上課 🚫🚫🚫\n"
                             else:
                                 message = f"🔔 課程即將開始！\n\n"
                                 message += f"📚 課程: {course['summary']}\n"
@@ -1786,12 +1791,14 @@ def check_upcoming_courses():
                         is_cancelled, keyword = check_cancellation_keywords(course['summary'], course['summary'])
                         
                         if is_cancelled:
-                            message = f"🚫 **停課通知**\n\n"
+                            message = f"🚫🚫🚫 **停課通知** 🚫🚫🚫\n\n"
+                            message += f"⚠️⚠️⚠️ 課程已取消 ⚠️⚠️⚠️\n\n"
                             message += f"📚 課程: {course['summary']}\n"
                             message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
                             message += f"👨‍🏫 老師: {course['teacher']}\n"
                             message += f"📅 行事曆: {course['calendar']}\n"
-                            message += f"🚫 原因: {keyword}\n"
+                            message += f"🚫 停課原因: {keyword}\n\n"
+                            message += f"🚫🚫🚫 請勿前往上課 🚫🚫🚫\n"
                         else:
                             message = f"🔔 課程即將開始！\n\n"
                             message += f"📚 課程: {course['summary']}\n"
