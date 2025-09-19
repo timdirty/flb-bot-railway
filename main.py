@@ -746,7 +746,7 @@ def morning_summary():
                 # 處理兩種資料格式
                 if 'course_type' in course and 'teacher' in course:
                     # 新格式（來自 iCalendar 字串解析）
-                    formatted_course, is_cancelled, is_substitute = format_course_with_cancellation_check(
+                    formatted_course, is_cancelled, is_substitute, is_experience = format_course_with_cancellation_check(
                         course['course_type'], 
                         course['teacher'], 
                         course['summary'], 
@@ -758,7 +758,7 @@ def morning_summary():
                     admin_message += f"{i}. {formatted_course}\n"
                 else:
                     # 舊格式（來自物件解析）
-                    formatted_course, is_cancelled, is_substitute = format_course_with_cancellation_check(
+                    formatted_course, is_cancelled, is_substitute, is_experience = format_course_with_cancellation_check(
                         course.get('course_type', '未知課程'), 
                         course.get('teacher', '未知老師'), 
                         course.get('title', course.get('summary', '無標題')), 
@@ -869,13 +869,38 @@ def check_substitute_keywords(title, summary):
     
     return False, None
 
+def check_experience_keywords(title, summary):
+    """檢查標題或摘要中是否包含體驗關鍵字"""
+    if not title and not summary:
+        return False, None
+    
+    # 體驗關鍵字列表
+    experience_keywords = ['體驗', '體']
+    
+    # 檢查標題
+    if title:
+        for keyword in experience_keywords:
+            if keyword in title:
+                return True, keyword
+    
+    # 檢查摘要
+    if summary:
+        for keyword in experience_keywords:
+            if keyword in summary:
+                return True, keyword
+    
+    return False, None
+
 def format_course_with_cancellation_check(course_type, teacher, summary, start_time, end_time, location, calendar):
-    """格式化課程資訊，包含停課和代課檢測"""
+    """格式化課程資訊，包含停課、代課和體驗檢測"""
     # 檢查是否為停課
     is_cancelled, cancel_keyword = check_cancellation_keywords(summary, summary)
     
     # 檢查是否為代課
     is_substitute, sub_keyword = check_substitute_keywords(summary, summary)
+    
+    # 檢查是否為體驗課程
+    is_experience, exp_keyword = check_experience_keywords(summary, summary)
     
     if is_cancelled:
         # 停課格式 - 使用非常明顯的標記
@@ -889,7 +914,7 @@ def format_course_with_cancellation_check(course_type, teacher, summary, start_t
             formatted_course += f"   {formatted_location}\n"
         formatted_course += f"📝 備註: {summary}\n"
         formatted_course += f"🚫🚫🚫 請勿前往上課 🚫🚫🚫\n"
-        return formatted_course, True, False
+        return formatted_course, True, False, False
     elif is_substitute:
         # 代課格式 - 使用明顯的代課標記
         formatted_course = f"🔄🔄🔄 **代課通知** 🔄🔄🔄\n"
@@ -903,7 +928,20 @@ def format_course_with_cancellation_check(course_type, teacher, summary, start_t
             formatted_course += f"   {formatted_location}\n"
         formatted_course += f"📝 備註: {summary}\n"
         formatted_course += f"🔄🔄🔄 請代課老師前往上課 🔄🔄🔄\n"
-        return formatted_course, False, True
+        return formatted_course, False, True, False
+    elif is_experience:
+        # 體驗課程格式 - 使用明顯的體驗標記
+        formatted_course = f"🎯🎯🎯 **體驗課程** 🎯🎯🎯\n"
+        formatted_course += f"✨✨✨ 體驗課程通知 ✨✨✨\n"
+        formatted_course += f"📚 課程: {course_type} - {teacher}\n"
+        formatted_course += f"⏰ 時間: {start_time}-{end_time}\n"
+        formatted_course += f"🎯 課程類型: {exp_keyword}\n"
+        if location:
+            formatted_location = format_location_with_map_link(location)
+            formatted_course += f"   {formatted_location}\n"
+        formatted_course += f"📝 備註: {summary}\n"
+        formatted_course += f"🎯🎯🎯 請準備體驗課程 🎯🎯🎯\n"
+        return formatted_course, False, False, True
     else:
         # 正常課程格式
         formatted_course = f"{course_type} - {teacher}\n"
@@ -912,7 +950,7 @@ def format_course_with_cancellation_check(course_type, teacher, summary, start_t
             formatted_location = format_location_with_map_link(location)
             formatted_course += f"   {formatted_location}\n"
         formatted_course += f"   📝 {summary}\n"
-        return formatted_course, False, False
+        return formatted_course, False, False, False
 
 def parse_course_info(title, description):
     """解析課程資訊"""
@@ -1750,9 +1788,10 @@ def check_upcoming_courses():
                 for teacher_user_id, teacher_data in teacher_courses.items():
                     for course in teacher_data['courses']:
                         try:
-                            # 檢查是否為停課或代課
+                            # 檢查是否為停課、代課或體驗課程
                             is_cancelled, cancel_keyword = check_cancellation_keywords(course['summary'], course['summary'])
                             is_substitute, sub_keyword = check_substitute_keywords(course['summary'], course['summary'])
+                            is_experience, exp_keyword = check_experience_keywords(course['summary'], course['summary'])
                             
                             if is_cancelled:
                                 message = f"🚫🚫🚫 **停課通知** 🚫🚫🚫\n\n"
@@ -1771,6 +1810,15 @@ def check_upcoming_courses():
                                 message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
                                 message += f"🔄 代課原因: {sub_keyword}\n\n"
                                 message += f"🔄🔄🔄 請代課老師前往上課 🔄🔄🔄\n"
+                            elif is_experience:
+                                message = f"🎯🎯🎯 **體驗課程** 🎯🎯🎯\n\n"
+                                message += f"✨✨✨ 體驗課程通知 ✨✨✨\n\n"
+                                message += f"📚 課程: {course['summary']}\n"
+                                message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                                message += f"👨‍🏫 老師: {course['teacher']}\n"
+                                message += f"📅 行事曆: {course['calendar']}\n"
+                                message += f"🎯 課程類型: {exp_keyword}\n\n"
+                                message += f"🎯🎯🎯 請準備體驗課程 🎯🎯🎯\n"
                             else:
                                 message = f"🔔 課程即將開始！\n\n"
                                 message += f"📚 課程: {course['summary']}\n"
@@ -1835,9 +1883,10 @@ def check_upcoming_courses():
                 
                 for course in all_admin_courses:
                     try:
-                        # 檢查是否為停課或代課
+                        # 檢查是否為停課、代課或體驗課程
                         is_cancelled, cancel_keyword = check_cancellation_keywords(course['summary'], course['summary'])
                         is_substitute, sub_keyword = check_substitute_keywords(course['summary'], course['summary'])
+                        is_experience, exp_keyword = check_experience_keywords(course['summary'], course['summary'])
                         
                         if is_cancelled:
                             message = f"🚫🚫🚫 **停課通知** 🚫🚫🚫\n\n"
@@ -1856,6 +1905,15 @@ def check_upcoming_courses():
                             message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
                             message += f"🔄 代課原因: {sub_keyword}\n\n"
                             message += f"🔄🔄🔄 請代課老師前往上課 🔄🔄🔄\n"
+                        elif is_experience:
+                            message = f"🎯🎯🎯 **體驗課程** 🎯🎯🎯\n\n"
+                            message += f"✨✨✨ 體驗課程通知 ✨✨✨\n\n"
+                            message += f"📚 課程: {course['summary']}\n"
+                            message += f"⏰ 時間: {course['time']} (約 {int(course['time_diff'])} 分鐘後)\n"
+                            message += f"👨‍🏫 老師: {course['teacher']}\n"
+                            message += f"📅 行事曆: {course['calendar']}\n"
+                            message += f"🎯 課程類型: {exp_keyword}\n\n"
+                            message += f"🎯🎯🎯 請準備體驗課程 🎯🎯🎯\n"
                         else:
                             message = f"🔔 課程即將開始！\n\n"
                             message += f"📚 課程: {course['summary']}\n"
