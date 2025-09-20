@@ -1174,7 +1174,7 @@ def check_today_courses():
             admin_message = f"☀️ 當日課程提醒\n\n📅 日期: {today.strftime('%Y年%m月%d日')}\n📚 共 {len(today_courses)} 堂課\n\n"
             
             for i, course in enumerate(today_courses, 1):
-                formatted_course, is_cancelled, is_substitute = format_course_with_cancellation_check(
+                formatted_course, is_cancelled, is_substitute, is_experience = format_course_with_cancellation_check(
                     course['course_type'], 
                     course['teacher'], 
                     course['summary'], 
@@ -1406,7 +1406,7 @@ def check_tomorrow_courses_new():
             admin_message = f"🌙 隔天課程提醒\n\n📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n📚 共 {len(tomorrow_courses)} 堂課\n\n"
             
             for i, course in enumerate(tomorrow_courses, 1):
-                formatted_course, is_cancelled, is_substitute = format_course_with_cancellation_check(
+                formatted_course, is_cancelled, is_substitute, is_experience = format_course_with_cancellation_check(
                     course['course_type'], 
                     course['teacher'], 
                     course['summary'], 
