@@ -909,14 +909,16 @@ def send_student_reminder(course_info, student_data):
         # 發送給每位學生的家長
         for student in students:
             try:
-                if 'uid' in student and student['uid']:
+                # 檢查userId欄位（API回傳的是userId而不是uid）
+                user_id = student.get('userId', '')
+                if user_id and user_id.strip():
                     # 這裡需要實現發送LINE訊息給家長的邏輯
                     # 目前先打印訊息內容
-                    print(f"📱 發送學生家長提醒給 {student.get('name', '未知')} (UID: {student['uid']})")
+                    print(f"📱 發送學生家長提醒給 {student.get('name', '未知')} (UserID: {user_id})")
                     print(f"訊息內容: {parent_message}")
                     success_students.append(student.get('name', '未知'))
                 else:
-                    print(f"⚠️ 學生 {student.get('name', '未知')} 沒有有效的UID")
+                    print(f"⚠️ 學生 {student.get('name', '未知')} 沒有有效的UserID (userId: '{user_id}')")
                     failed_students.append(student.get('name', '未知'))
             except Exception as e:
                 print(f"❌ 發送學生家長提醒失敗: {e}")
@@ -1644,6 +1646,7 @@ def check_tomorrow_courses_new():
                 admin_summary += f"❌ 發送失敗 {len(all_failed_students)} 位學生家長（沒有user id）:\n"
                 for student in all_failed_students:
                     admin_summary += f"  • {student}\n"
+                admin_summary += f"\n💡 請檢查這些學生在Google Sheet中是否有設定LINE UserID"
             
             # 發送給管理員Tim
             try:
