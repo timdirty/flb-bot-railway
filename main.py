@@ -886,7 +886,7 @@ def get_weekday_from_date(date_obj):
     return weekdays[date_obj.weekday()]
 
 def send_student_reminder(course_info, student_data):
-    """發送學生家長提醒訊息"""
+    """發送學生家長提醒訊息（管理員模式）"""
     try:
         if not student_data or 'students' not in student_data:
             print("⚠️ 沒有學生資料可發送提醒")
@@ -906,15 +906,14 @@ def send_student_reminder(course_info, student_data):
         success_students = []
         failed_students = []
         
-        # 發送給每位學生的家長
+        # 管理員模式：只記錄不實際發送
         for student in students:
             try:
                 # 檢查userId欄位（API回傳的是userId而不是uid）
                 user_id = student.get('userId', '')
                 if user_id and user_id.strip():
-                    # 這裡需要實現發送LINE訊息給家長的邏輯
-                    # 目前先打印訊息內容
-                    print(f"📱 發送學生家長提醒給 {student.get('name', '未知')} (UserID: {user_id})")
+                    # 管理員模式：只記錄，不實際發送
+                    print(f"📱 [管理員模式] 模擬發送學生家長提醒給 {student.get('name', '未知')} (UserID: {user_id})")
                     print(f"訊息內容: {parent_message}")
                     success_students.append(student.get('name', '未知'))
                 else:
@@ -1300,7 +1299,7 @@ def check_today_courses():
                 teacher_courses[teacher_name] = []
             teacher_courses[teacher_name].append(course)
         
-        # 發送個人化提醒給每位講師
+        # 管理員模式：只記錄講師提醒，不實際發送
         teacher_manager = TeacherManager()
         for teacher_name, courses in teacher_courses.items():
             try:
@@ -1319,14 +1318,9 @@ def check_today_courses():
                             personal_message += f"   {formatted_location}\n"
                         personal_message += f"   📝 {course['summary']}\n\n"
                     
-                    # 發送給講師
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=teacher_user_id,
-                            messages=[TextMessage(text=personal_message)]
-                        )
-                    )
-                    print(f"✅ 已發送當日提醒給講師 {teacher_name} ({teacher_user_id})")
+                    # 管理員模式：只記錄，不實際發送
+                    print(f"📱 [管理員模式] 模擬發送當日提醒給講師 {teacher_name} ({teacher_user_id})")
+                    print(f"訊息內容: {personal_message}")
                 else:
                     print(f"⚠️ 找不到講師 {teacher_name} 的 user_id")
                     
@@ -1532,7 +1526,7 @@ def check_tomorrow_courses_new():
                 teacher_courses[teacher_name] = []
             teacher_courses[teacher_name].append(course)
         
-        # 發送個人化提醒給每位講師
+        # 管理員模式：只記錄講師提醒，不實際發送
         teacher_manager = TeacherManager()
         for teacher_name, courses in teacher_courses.items():
             try:
@@ -1551,14 +1545,9 @@ def check_tomorrow_courses_new():
                             personal_message += f"   {formatted_location}\n"
                         personal_message += f"   📝 {course['summary']}\n\n"
                     
-                    # 發送給講師
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=teacher_user_id,
-                            messages=[TextMessage(text=personal_message)]
-                        )
-                    )
-                    print(f"✅ 已發送隔天提醒給講師 {teacher_name} ({teacher_user_id})")
+                    # 管理員模式：只記錄，不實際發送
+                    print(f"📱 [管理員模式] 模擬發送隔天提醒給講師 {teacher_name} ({teacher_user_id})")
+                    print(f"訊息內容: {personal_message}")
                 else:
                     print(f"⚠️ 找不到講師 {teacher_name} 的 user_id")
                     
