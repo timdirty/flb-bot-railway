@@ -1752,20 +1752,31 @@ def send_parent_reminders():
                     
                     for student in students:
                         try:
-                            # 檢查學生出勤狀態
+                            # 檢查學生隔天的出勤狀態
                             attendance_records = student.get('attendance', [])
                             user_id = student.get('userId', '')
                             
-                            # 檢查最近的出勤記錄
+                            # 檢查隔天是否有出勤記錄
                             should_skip = False
-                            if attendance_records:
-                                latest_record = attendance_records[-1]  # 最新的記錄
-                                status = latest_record.get('status', '')
-                                present = latest_record.get('present', True)
-                                
-                                if status in ['leave', 'absent'] or not present:
-                                    should_skip = True
-                                    print(f"⚠️ 學生 {student.get('name', '未知')} 最近缺席或請假 ({status})，跳過提醒")
+                            tomorrow_date = tomorrow.strftime('%Y-%m-%d')
+                            
+                            # 尋找隔天的出勤記錄
+                            for record in attendance_records:
+                                record_date = record.get('date', '')
+                                if record_date == tomorrow_date:
+                                    # 隔天有記錄，檢查狀態
+                                    status = record.get('status', '')
+                                    present = record.get('present', True)
+                                    
+                                    if status in ['leave', 'absent'] or not present:
+                                        should_skip = True
+                                        print(f"⚠️ 學生 {student.get('name', '未知')} 隔天缺席或請假 ({status})，跳過提醒")
+                                    else:
+                                        print(f"✅ 學生 {student.get('name', '未知')} 隔天正常出勤 ({status})")
+                                    break
+                            else:
+                                # 隔天沒有出勤記錄，這是正常情況
+                                print(f"✅ 學生 {student.get('name', '未知')} 隔天沒有出勤記錄（正常）")
                             
                             if should_skip:
                                 continue
