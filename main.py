@@ -822,8 +822,106 @@ def format_location_with_map_link(location):
         maps_url = f"https://www.google.com/maps/search/?api=1&query={location}"
         return f"📍 {location}\n🗺️ 地圖: {maps_url}"
     
-    # 其他情況直接顯示地址
+    # 預設返回原始地址
     return f"📍 {location}"
+
+def get_student_attendance(course, period):
+    """調用Google Apps Script API獲取學生出勤資料"""
+    try:
+        import requests
+        import json
+        
+        url = "https://script.google.com/macros/s/AKfycbzm0GD-T09Botbs52e8PyeVuA5slJh6Z0AQ7I0uUiGZiE6aWhTO2D0d3XHFrdLNv90uCw/exec"
+        
+        payload = json.dumps({
+            "action": "getRosterAttendance",
+            "course": course,
+            "period": period
+        })
+        headers = {
+            'Content-Type': 'application/json',
+            'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3Zrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
+        }
+        
+        response = requests.post(url, headers=headers, data=payload, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ 成功獲取學生出勤資料: {course} - {period}")
+            return data
+        else:
+            print(f"❌ 獲取學生出勤資料失敗: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ 調用學生出勤API失敗: {e}")
+        return None
+
+def convert_time_to_period(start_time, end_time, weekday=None):
+    """將時間格式轉換為period格式（如：六 0930-1100）"""
+    try:
+        # 解析時間格式 HH:MM
+        start_hour = int(start_time.split(':')[0])
+        start_minute = int(start_time.split(':')[1])
+        end_hour = int(end_time.split(':')[0])
+        end_minute = int(end_time.split(':')[1])
+        
+        # 轉換為period格式
+        start_period = f"{start_hour:02d}{start_minute:02d}"
+        end_period = f"{end_hour:02d}{end_minute:02d}"
+        
+        # 如果沒有提供星期幾，使用預設值
+        if not weekday:
+            weekday = "六"  # 預設為星期六
+        
+        return f"{weekday} {start_period}-{end_period}"
+        
+    except Exception as e:
+        print(f"❌ 時間格式轉換失敗: {e}")
+        return None
+
+def get_weekday_from_date(date_obj):
+    """從日期物件獲取星期幾的中文表示"""
+    weekdays = ['一', '二', '三', '四', '五', '六', '日']
+    return weekdays[date_obj.weekday()]
+
+def send_student_reminder(course_info, student_data):
+    """發送學生家長提醒訊息"""
+    try:
+        if not student_data or 'students' not in student_data:
+            print("⚠️ 沒有學生資料可發送提醒")
+            return
+        
+        students = student_data['students']
+        if not students:
+            print("⚠️ 學生列表為空")
+            return
+        
+        # 構建學生家長提醒訊息
+        parent_message = f"📚 課程提醒\n\n"
+        parent_message += f"📅 日期: {course_info['date']}\n"
+        parent_message += f"⏰ 時間: {course_info['start_time']}-{course_info['end_time']}\n"
+        parent_message += f"👨‍🏫 講師: {course_info['teacher']}\n"
+        parent_message += f"📍 地點: {course_info['location']}\n\n"
+        parent_message += f"🎯 課程: {course_info['course_type']}\n\n"
+        parent_message += f"請確認您的孩子明天有課程安排！\n"
+        parent_message += f"如有任何問題，請聯繫講師或管理員。"
+        
+        # 發送給每位學生的家長
+        for student in students:
+            try:
+                if 'uid' in student and student['uid']:
+                    # 這裡需要實現發送LINE訊息給家長的邏輯
+                    # 目前先打印訊息內容
+                    print(f"📱 發送學生家長提醒給 {student.get('name', '未知')} (UID: {student['uid']})")
+                    print(f"訊息內容: {parent_message}")
+                else:
+                    print(f"⚠️ 學生 {student.get('name', '未知')} 沒有有效的UID")
+            except Exception as e:
+                print(f"❌ 發送學生家長提醒失敗: {e}")
+                
+    except Exception as e:
+        print(f"❌ 處理學生家長提醒失敗: {e}")
 
 def check_cancellation_keywords(title, summary):
     """檢查標題或摘要中是否包含停課關鍵字"""
@@ -1474,6 +1572,54 @@ def check_tomorrow_courses_new():
                     print(f"✅ 已發送隔天提醒給 {admin.get('admin_name', '未知')}")
             except Exception as e:
                 print(f"❌ 發送隔天提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
+
+        # 發送學生家長提醒
+        print("🎓 開始發送學生家長提醒...")
+        for course in tomorrow_courses:
+            try:
+                # 檢查是否為停課、代課或體驗課程
+                is_cancelled = check_cancellation_keywords(course['summary'], '')
+                is_substitute = check_substitute_keywords(course['summary'], '')
+                is_experience = check_experience_keywords(course['summary'], '')
+                
+                # 如果是停課，跳過學生家長提醒
+                if is_cancelled[0]:
+                    print(f"⚠️ 課程 {course['course_type']} 已停課，跳過學生家長提醒")
+                    continue
+                
+                # 轉換時間格式為period格式
+                weekday = get_weekday_from_date(tomorrow)
+                period = convert_time_to_period(course['start_time'], course['end_time'], weekday)
+                
+                if not period:
+                    print(f"⚠️ 無法轉換時間格式: {course['start_time']}-{course['end_time']}")
+                    continue
+                
+                # 獲取學生出勤資料
+                student_data = get_student_attendance(course['course_type'], period)
+                
+                if student_data:
+                    # 構建課程資訊
+                    course_info = {
+                        'date': tomorrow.strftime('%Y年%m月%d日'),
+                        'start_time': course['start_time'],
+                        'end_time': course['end_time'],
+                        'teacher': course['teacher'],
+                        'location': course['location'],
+                        'course_type': course['course_type'],
+                        'is_substitute': is_substitute[0],
+                        'is_experience': is_experience[0]
+                    }
+                    
+                    # 發送學生家長提醒
+                    send_student_reminder(course_info, student_data)
+                else:
+                    print(f"⚠️ 無法獲取課程 {course['course_type']} 的學生資料")
+                    
+            except Exception as e:
+                print(f"❌ 處理課程 {course.get('course_type', '未知')} 的學生家長提醒失敗: {e}")
+        
+        print("✅ 隔天課程提醒完成")
 
     except Exception as e:
         print(f"❌ 檢查隔天課程失敗: {e}")
