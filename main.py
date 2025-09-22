@@ -1753,12 +1753,21 @@ def send_parent_reminders():
                     for student in students:
                         try:
                             # 檢查學生出勤狀態
-                            attendance_status = student.get('attendance', '').lower()
+                            attendance_records = student.get('attendance', [])
                             user_id = student.get('userId', '')
                             
-                            # 如果學生缺席或請假，跳過
-                            if attendance_status in ['leave', 'false', 'absent', '請假', '缺席']:
-                                print(f"⚠️ 學生 {student.get('name', '未知')} 明天缺席或請假，跳過提醒")
+                            # 檢查最近的出勤記錄
+                            should_skip = False
+                            if attendance_records:
+                                latest_record = attendance_records[-1]  # 最新的記錄
+                                status = latest_record.get('status', '')
+                                present = latest_record.get('present', True)
+                                
+                                if status in ['leave', 'absent'] or not present:
+                                    should_skip = True
+                                    print(f"⚠️ 學生 {student.get('name', '未知')} 最近缺席或請假 ({status})，跳過提醒")
+                            
+                            if should_skip:
                                 continue
                             
                             if user_id and user_id.strip():
