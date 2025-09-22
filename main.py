@@ -44,9 +44,11 @@ def send_line_message(user_id, message_text, message_type="管理員通知"):
     global ADMIN_MODE
     
     if ADMIN_MODE:
-        # 管理員模式：只記錄不發送
+        # 管理員模式：只記錄不發送，並添加管理員模式標示
+        admin_prefix = "🔧 [管理員模式] "
+        admin_message = admin_prefix + message_text
         print(f"📱 [管理員模式] 模擬發送{message_type}給 {user_id}")
-        print(f"訊息內容: {message_text}")
+        print(f"訊息內容: {admin_message}")
         return True
     else:
         # 正常模式：實際發送
@@ -144,11 +146,8 @@ def send_admin_notification(message_text, notification_type="info"):
                     continue
                 
                 if admin_user_id:
-                    messaging_api.push_message(
-                        PushMessageRequest(to=admin_user_id, messages=[TextMessage(text=formatted_message)])
-                    )
+                    send_line_message(admin_user_id, formatted_message, f"管理員通知給{admin_name}")
                     success_count += 1
-                    print(f"已發送管理員通知給 {admin_name}: {message_text}")
             except Exception as e:
                 print(f"發送通知給 {admin.get('admin_name', '未知')} 失敗: {e}")
         
@@ -398,12 +397,12 @@ def upload_weekly_calendar_to_sheet():
                                     # 嘗試匹配各種課程類型模式
                                     for pattern in course_patterns:
                                         course_match = re.search(pattern, summary)
-                                        if course_match:
-                                            course_type = course_match.group(1)
-                                            # 移除已提取的課程類型，其餘部分放到備注2
-                                            remaining_summary = summary.replace(course_type, '').strip()
-                                            print(f"✅ 識別到課程類型: {course_type} (來源: {summary})")
-                                            break
+                                    if course_match:
+                                        course_type = course_match.group(1)
+                                        # 移除已提取的課程類型，其餘部分放到備注2
+                                        remaining_summary = summary.replace(course_type, '').strip()
+                                        print(f"✅ 識別到課程類型: {course_type} (來源: {summary})")
+                                        break
                                     
                                     # 如果沒有找到課程類型，顯示未知課程
                                     if course_type == "未知課程":
@@ -804,13 +803,7 @@ def morning_summary():
                 try:
                     admin_user_id = admin.get("admin_user_id")
                     if admin_user_id and admin_user_id.startswith("U"):
-                        messaging_api.push_message(
-                            PushMessageRequest(
-                                to=admin_user_id,
-                                messages=[TextMessage(text=admin_message)]
-                            )
-                        )
-                        print(f"✅ 已發送今日總覽給 {admin.get('admin_name', '未知')}")
+                        send_line_message(admin_user_id, admin_message, f"今日總覽給{admin.get('admin_name', '未知')}")
                 except Exception as e:
                     print(f"❌ 發送今日總覽給 {admin.get('admin_name', '未知')} 失敗: {e}")
         else:
@@ -1360,13 +1353,7 @@ def check_today_courses():
                 try:
                     admin_user_id = admin.get("admin_user_id")
                     if admin_user_id and admin_user_id.startswith("U"):
-                        messaging_api.push_message(
-                            PushMessageRequest(
-                                to=admin_user_id,
-                                messages=[TextMessage(text=admin_message)]
-                            )
-                        )
-                        print(f"✅ 已發送當日提醒給 {admin.get('admin_name', '未知')}")
+                        send_line_message(admin_user_id, admin_message, f"當日提醒給{admin.get('admin_name', '未知')}")
                 except Exception as e:
                     print(f"❌ 發送當日提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
         else:
@@ -1586,13 +1573,7 @@ def check_tomorrow_courses_new():
             try:
                 admin_user_id = admin.get("admin_user_id")
                 if admin_user_id and admin_user_id.startswith("U"):
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
-                            messages=[TextMessage(text=admin_message)]
-                        )
-                    )
-                    print(f"✅ 已發送隔天提醒給 {admin.get('admin_name', '未知')}")
+                    send_line_message(admin_user_id, admin_message, f"隔天提醒給{admin.get('admin_name', '未知')}")
             except Exception as e:
                 print(f"❌ 發送隔天提醒給 {admin.get('admin_name', '未知')} 失敗: {e}")
 
@@ -1856,13 +1837,7 @@ def send_today_parent_reminders():
                         break
                 
                 if tim_admin and tim_admin.get('admin_user_id'):
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=tim_admin['admin_user_id'],
-                            messages=[TextMessage(text=admin_summary)]
-                        )
-                    )
-                    print(f"✅ 已發送今日學生家長上課提醒結果給管理員 Tim")
+                    send_line_message(tim_admin['admin_user_id'], admin_summary, "今日學生家長上課提醒結果給管理員Tim")
                 else:
                     print(f"⚠️ 找不到管理員 Tim 的 user_id")
             except Exception as e:
@@ -2128,13 +2103,7 @@ def send_parent_reminders():
                         break
                 
                 if tim_admin and tim_admin.get('admin_user_id'):
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=tim_admin['admin_user_id'],
-                            messages=[TextMessage(text=admin_summary)]
-                        )
-                    )
-                    print(f"✅ 已發送學生家長提醒結果給管理員 Tim")
+                    send_line_message(tim_admin['admin_user_id'], admin_summary, "學生家長提醒結果給管理員Tim")
                 else:
                     print(f"⚠️ 找不到管理員 Tim 的 user_id")
             except Exception as e:
@@ -2217,12 +2186,7 @@ def send_admin_error_notification(error_message):
             try:
                 admin_user_id = admin.get("admin_user_id")
                 if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
-                            messages=[TextMessage(text=message)]
-                        )
-                    )
+                    send_line_message(admin_user_id, message, f"課程提醒給{admin.get('admin_name', '未知')}")
                     print(f"✅ 已發送錯誤通知給管理員 {admin.get('admin_name', '未知')}")
             except Exception as e:
                 print(f"❌ 發送錯誤通知給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
@@ -2516,13 +2480,7 @@ def check_upcoming_courses():
                             message += "\n"
                             message += "📝 簽到連結: https://liff.line.me/1657746214-wPgd2qQn"
                             
-                            messaging_api.push_message(
-                                PushMessageRequest(
-                                    to=teacher_user_id,
-                                    messages=[TextMessage(text=message)]
-                                )
-                            )
-                            print(f"✅ 已發送課程提醒給 {teacher_data['teacher_name']} ({teacher_user_id})")
+                            send_line_message(teacher_user_id, message, f"課程提醒給{teacher_data['teacher_name']}")
                             
                             # 發送管理員通知：已發送講師提醒
                             admin_message = f"📤 已發送課程提醒給講師\n\n"
@@ -2626,13 +2584,7 @@ def check_upcoming_courses():
                             try:
                                 admin_user_id = admin.get("admin_user_id")
                                 if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
-                                    messaging_api.push_message(
-                                        PushMessageRequest(
-                                            to=admin_user_id,
-                                            messages=[TextMessage(text=message)]
-                                        )
-                                    )
-                                    print(f"✅ 已發送課程提醒給管理員 {admin.get('admin_name', '未知')}")
+                                    send_line_message(admin_user_id, message, f"課程提醒給管理員{admin.get('admin_name', '未知')}")
                             except Exception as e:
                                 print(f"❌ 發送課程提醒給管理員 {admin.get('admin_name', '未知')} 失敗: {e}")
                                 # 發送失敗時通知其他管理員
@@ -2990,11 +2942,17 @@ if __name__ == "__main__":
         print("🏠 本地環境：啟動定時任務和 Flask 應用程式")
         scheduler = start_scheduler()
         
+        print("🔗 可用的 API 端點:")
+        print("   - /api/trigger_tasks - 觸發所有任務")
+        print("   - /api/trigger_course_check - 觸發課程檢查")
+        print("   - /api/trigger_calendar_upload - 觸發行事曆上傳")
+        print("   - /api/trigger_parent_reminder - 觸發隔日學生家長提醒")
+        print("   - /api/trigger_today_parent_reminder - 觸發今日學生家長上課提醒")
+        print("   - /api/admin_mode - 管理員模式控制")
+        
         try:
             print("⏰ 按 Ctrl+C 停止系統")
-            while True:
-                import time
-                time.sleep(1)
+            app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
         except KeyboardInterrupt:
             print("\n🛑 正在停止系統...")
             scheduler.shutdown()
