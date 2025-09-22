@@ -484,6 +484,39 @@
 
             <!-- 系統設定標籤頁 -->
             <div class="tab-pane fade" id="system-settings" role="tabpanel">
+                <!-- 管理員模式設定 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user-shield"></i> 管理員模式設定
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="admin-mode-switch" onchange="toggleAdminMode()">
+                                    <label class="form-check-label" for="admin-mode-switch">
+                                        <strong>管理員模式</strong>
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    <div id="admin-mode-status" class="text-muted">載入中...</div>
+                                    <small class="text-muted">
+                                        開啟時：所有訊息只記錄到控制台，不實際發送給講師和家長<br>
+                                        關閉時：正常發送訊息給講師和家長
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-info" onclick="refreshAdminMode()">
+                                    <i class="fas fa-sync"></i> 重新載入狀態
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 排程設定 -->
                 <div class="card mt-3">
                     <div class="card-header">
@@ -828,6 +861,7 @@
             loadTeacherManagement(); // 載入講師管理資料
             refreshTeachers(); // 載入老師資料（直接從teacher_data.json）
             initializeDateFilter(); // 初始化日期篩選器
+            loadAdminMode(); // 載入管理員模式狀態
             
             // 設定定時更新
             statusInterval = setInterval(refreshStatus, 300000); // 每5分鐘更新狀態
@@ -2331,6 +2365,70 @@
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }
+        }
+
+        // 載入管理員模式狀態
+        async function loadAdminMode() {
+            try {
+                const response = await fetch('/api/admin_mode');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const adminModeSwitch = document.getElementById('admin-mode-switch');
+                    const adminModeStatus = document.getElementById('admin-mode-status');
+                    
+                    adminModeSwitch.checked = data.admin_mode;
+                    adminModeStatus.textContent = data.message;
+                    adminModeStatus.className = data.admin_mode ? 'text-warning' : 'text-success';
+                } else {
+                    showNotification('載入管理員模式狀態失敗', 'error');
+                }
+            } catch (error) {
+                console.error('載入管理員模式狀態失敗:', error);
+                showNotification('載入管理員模式狀態失敗', 'error');
+            }
+        }
+
+        // 切換管理員模式
+        async function toggleAdminMode() {
+            const adminModeSwitch = document.getElementById('admin-mode-switch');
+            const newMode = adminModeSwitch.checked;
+            
+            try {
+                const response = await fetch('/api/admin_mode', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        admin_mode: newMode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const adminModeStatus = document.getElementById('admin-mode-status');
+                    adminModeStatus.textContent = data.message;
+                    adminModeStatus.className = newMode ? 'text-warning' : 'text-success';
+                    
+                    showNotification(data.message, 'success');
+                } else {
+                    // 如果切換失敗，恢復開關狀態
+                    adminModeSwitch.checked = !newMode;
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('切換管理員模式失敗:', error);
+                // 如果切換失敗，恢復開關狀態
+                adminModeSwitch.checked = !newMode;
+                showNotification('切換管理員模式失敗', 'error');
+            }
+        }
+
+        // 重新載入管理員模式狀態
+        function refreshAdminMode() {
+            loadAdminMode();
         }
 
         // 重置系統設定為預設值

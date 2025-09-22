@@ -36,6 +36,33 @@ tz = pytz.timezone("Asia/Taipei")
 # 管理員設定檔案路徑
 ADMIN_CONFIG_FILE = "admin_config.json"
 
+# 管理員模式開關（預設開啟）
+ADMIN_MODE = True
+
+def send_line_message(user_id, message_text, message_type="管理員通知"):
+    """統一的LINE訊息發送函數"""
+    global ADMIN_MODE
+    
+    if ADMIN_MODE:
+        # 管理員模式：只記錄不發送
+        print(f"📱 [管理員模式] 模擬發送{message_type}給 {user_id}")
+        print(f"訊息內容: {message_text}")
+        return True
+    else:
+        # 正常模式：實際發送
+        try:
+            messaging_api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[TextMessage(text=message_text)]
+                )
+            )
+            print(f"✅ 已發送{message_type}給 {user_id}")
+            return True
+        except Exception as e:
+            print(f"❌ 發送{message_type}給 {user_id} 失敗: {e}")
+            return False
+
 def load_admin_config():
     """載入管理員設定"""
     try:
@@ -2571,6 +2598,39 @@ def trigger_parent_reminder():
             "success": False, 
             "message": f"觸發學生家長提醒失敗: {str(e)}",
             "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/admin_mode', methods=['GET'])
+def get_admin_mode():
+    """獲取管理員模式狀態"""
+    global ADMIN_MODE
+    return {
+        "success": True,
+        "admin_mode": ADMIN_MODE,
+        "message": "管理員模式已開啟" if ADMIN_MODE else "管理員模式已關閉"
+    }
+
+@app.route('/api/admin_mode', methods=['POST'])
+def toggle_admin_mode():
+    """切換管理員模式"""
+    global ADMIN_MODE
+    try:
+        data = request.get_json()
+        new_mode = data.get('admin_mode', not ADMIN_MODE)
+        ADMIN_MODE = new_mode
+        
+        print(f"🔄 管理員模式已{'開啟' if ADMIN_MODE else '關閉'}")
+        
+        return {
+            "success": True,
+            "admin_mode": ADMIN_MODE,
+            "message": f"管理員模式已{'開啟' if ADMIN_MODE else '關閉'}"
+        }
+    except Exception as e:
+        print(f"❌ 切換管理員模式失敗: {e}")
+        return {
+            "success": False,
+            "message": f"切換管理員模式失敗: {str(e)}"
         }
 
 @app.route('/api/auto_select_teacher', methods=['POST'])
