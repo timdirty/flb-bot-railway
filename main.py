@@ -1601,6 +1601,278 @@ def check_tomorrow_courses_new():
     except Exception as e:
         print(f"❌ 檢查隔天課程失敗: {e}")
 
+def send_today_parent_reminders():
+    """發送今日學生家長上課提醒（從行事曆抓取今日課程資料）"""
+    try:
+        now = datetime.now(tz)
+        today = now
+        print(f"🎓 開始發送今日學生家長上課提醒: {today.strftime('%Y-%m-%d')}")
+        
+        # 設定今日的時間範圍
+        today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # 連接到 CalDAV 獲取今日課程
+        client = DAVClient(caldav_url, username=username, password=password)
+        principal = client.principal()
+        calendars = principal.calendars()
+        
+        today_courses = []
+        
+        for calendar in calendars:
+            try:
+                events = calendar.search(
+                    start=today_start,
+                    end=today_end,
+                    event=True,
+                    expand=True
+                )
+                
+                for event in events:
+                    try:
+                        # 解析事件資料
+                        event_data = event.data
+                        if isinstance(event_data, str):
+                            summary = '無標題'
+                            description = ''
+                            start_time = ''
+                            end_time = ''
+                            location = ''
+                            
+                            lines = event_data.split('\n')
+                            i = 0
+                            while i < len(lines):
+                                line = lines[i].strip()
+                                
+                                if line.startswith('SUMMARY:'):
+                                    summary = line[8:].strip()
+                                elif line.startswith('DESCRIPTION:'):
+                                    description = line[12:].strip()
+                                    # 處理多行描述
+                                    j = i + 1
+                                    while j < len(lines) and lines[j].startswith(' '):
+                                        description += lines[j][1:].strip()
+                                        j += 1
+                                    i = j - 1
+                                elif line.startswith('DTSTART'):
+                                    if 'TZID=' in line:
+                                        start_time = line.split(':')[1] if ':' in line else ''
+                                    else:
+                                        start_time = line.split(':')[1] if ':' in line else ''
+                                elif line.startswith('DTEND'):
+                                    if 'TZID=' in line:
+                                        end_time = line.split(':')[1] if ':' in line else ''
+                                    else:
+                                        end_time = line.split(':')[1] if ':' in line else ''
+                                elif line.startswith('LOCATION:'):
+                                    location = line[9:].strip()
+                                
+                                i += 1
+                            
+                            # 解析時間
+                            if start_time and end_time:
+                                try:
+                                    if len(start_time) == 8:  # YYYYMMDD
+                                        start_dt = datetime.strptime(start_time, '%Y%m%d')
+                                        end_dt = datetime.strptime(end_time, '%Y%m%d')
+                                    else:  # YYYYMMDDTHHMMSS
+                                        start_dt = datetime.strptime(start_time, '%Y%m%dT%H%M%S')
+                                        end_dt = datetime.strptime(end_time, '%Y%m%dT%H%M%S')
+                                    
+                                    start_dt = tz.localize(start_dt)
+                                    end_dt = tz.localize(end_dt)
+                                    
+                                    # 格式化時間
+                                    start_str = start_dt.strftime('%H:%M')
+                                    end_str = end_dt.strftime('%H:%M')
+                                    
+                                    # 提取課程類型 - 使用智慧識別邏輯
+                                    course_type = "未知課程"
+                                    
+                                    # 定義常見課程類型模式（按優先級排序）
+                                    course_patterns = [
+                                        # 完整課程名稱（包含數字）
+                                        r'(EV3\b)',  # EV3
+                                        r'(SPIKE\b)',  # SPIKE
+                                        r'(SPM\b)',   # SPM
+                                        r'(ESM\b)',   # ESM
+                                        r'(資訊課\d+)',  # 資訊課501, 資訊課401
+                                        r'(機器人\w*)',  # 機器人相關
+                                        r'(程式設計\w*)',  # 程式設計相關
+                                        # 基本課程類型（純字母）
+                                        r'([A-Z]{2,})',  # 其他大寫字母組合
+                                    ]
+                                    
+                                    # 嘗試匹配各種課程類型模式
+                                    for pattern in course_patterns:
+                                        course_match = re.search(pattern, summary)
+                                        if course_match:
+                                            course_type = course_match.group(1)
+                                            break
+                                    
+                                    # 檢查是否為停課
+                                    is_cancelled = check_cancellation_keywords(summary, '')
+                                    
+                                    # 如果不是停課，加入課程列表
+                                    if not is_cancelled[0]:
+                                        today_courses.append({
+                                            "summary": summary,
+                                            "start_time": start_str,
+                                            "end_time": end_str,
+                                            "location": location,
+                                            "course_type": course_type,
+                                            "calendar": calendar.name,
+                                            "start_dt": start_dt,
+                                            "end_dt": end_dt
+                                        })
+                                    
+                                except Exception as e:
+                                    print(f"解析時間失敗: {e}")
+                                    continue
+                        
+                    except Exception as e:
+                        print(f"解析事件失敗: {e}")
+                        continue
+                        
+            except Exception as e:
+                print(f"讀取行事曆 {calendar.name} 失敗: {e}")
+                continue
+        
+        # 按開始時間排序
+        today_courses.sort(key=lambda x: x['start_time'])
+        
+        print(f"📚 找到 {len(today_courses)} 個今日課程需要發送家長提醒")
+        
+        # 處理每個課程
+        all_success_students = []
+        all_failed_students = []
+        
+        for course in today_courses:
+            try:
+                print(f"🎓 處理課程: {course['course_type']} ({course['start_time']}-{course['end_time']})")
+                
+                # 轉換時間格式為period格式
+                weekday = get_weekday_from_date(today)
+                period = convert_time_to_period(course['start_time'], course['end_time'], weekday)
+                
+                if not period:
+                    print(f"⚠️ 無法轉換時間格式: {course['start_time']}-{course['end_time']}")
+                    continue
+                
+                print(f"📅 課程期間: {period}")
+                
+                # 調用Google Apps Script API獲取學生出勤資料
+                student_data = get_student_attendance(course['course_type'], period)
+                
+                if student_data and 'students' in student_data:
+                    students = student_data['students']
+                    success_students = []
+                    failed_students = []
+                    
+                    # 構建今日家長上課提醒訊息
+                    parent_message = f"提醒您，今天要上課喔！\n\n"
+                    parent_message += f"📚 {course['course_type']}\n"
+                    parent_message += f"📅 {today.strftime('%Y年%m月%d日')}\n"
+                    parent_message += f"⏰ {course['start_time']}-{course['end_time']}"
+                    
+                    print(f"👥 檢查 {len(students)} 位學生的出勤狀態...")
+                    
+                    for student in students:
+                        try:
+                            # 檢查學生今日的出勤狀態
+                            attendance_records = student.get('attendance', [])
+                            user_id = student.get('userId', '')
+                            
+                            # 檢查今日是否有出勤記錄
+                            should_skip = False
+                            today_date = today.strftime('%Y-%m-%d')
+                            
+                            # 尋找今日的出勤記錄
+                            for record in attendance_records:
+                                record_date = record.get('date', '')
+                                if record_date == today_date:
+                                    # 今日有記錄，檢查狀態
+                                    status = record.get('status', '')
+                                    present = record.get('present', True)
+                                    
+                                    if status in ['leave', 'absent'] or not present:
+                                        should_skip = True
+                                        print(f"⚠️ 學生 {student.get('name', '未知')} 今日缺席或請假 ({status})，跳過提醒")
+                                    else:
+                                        print(f"✅ 學生 {student.get('name', '未知')} 今日正常出勤 ({status})")
+                                    break
+                            else:
+                                # 今日沒有出勤記錄，這是正常情況
+                                print(f"✅ 學生 {student.get('name', '未知')} 今日沒有出勤記錄（正常）")
+                            
+                            if should_skip:
+                                continue
+                            
+                            if user_id and user_id.strip():
+                                print(f"📱 [管理員模式] 模擬發送今日學生家長上課提醒給 {student.get('name', '未知')} (UserID: {user_id})")
+                                print(f"訊息內容: {parent_message}")
+                                success_students.append(student.get('name', '未知'))
+                            else:
+                                print(f"⚠️ 學生 {student.get('name', '未知')} 沒有有效的UserID (userId: '{user_id}')")
+                                failed_students.append(student.get('name', '未知'))
+                        except Exception as e:
+                            print(f"❌ 處理學生 {student.get('name', '未知')} 失敗: {e}")
+                            failed_students.append(student.get('name', '未知'))
+                    
+                    all_success_students.extend(success_students)
+                    all_failed_students.extend(failed_students)
+                    
+                    print(f"✅ 課程 {course['course_type']} 處理完成: 成功 {len(success_students)} 位，失敗 {len(failed_students)} 位")
+                else:
+                    print(f"⚠️ 無法獲取課程 {course['course_type']} 的學生資料")
+                    
+            except Exception as e:
+                print(f"❌ 處理課程 {course.get('course_type', '未知')} 失敗: {e}")
+        
+        # 發送結果給管理員Tim
+        if all_success_students or all_failed_students:
+            admin_summary = f"🎓 今日學生家長上課提醒結果\n\n"
+            admin_summary += f"📅 日期: {today.strftime('%Y年%m月%d日')}\n"
+            admin_summary += f"📚 課程數量: {len(today_courses)}\n\n"
+            
+            if all_success_students:
+                admin_summary += f"✅ 成功發送給 {len(all_success_students)} 位學生家長:\n"
+                for student in all_success_students:
+                    admin_summary += f"  • {student}\n"
+                admin_summary += "\n"
+            
+            if all_failed_students:
+                admin_summary += f"❌ 發送失敗 {len(all_failed_students)} 位學生家長（沒有user id）:\n"
+                for student in all_failed_students:
+                    admin_summary += f"  • {student}\n"
+                admin_summary += f"\n💡 請檢查這些學生在Google Sheet中是否有設定LINE UserID"
+            
+            # 發送給管理員Tim
+            try:
+                tim_admin = None
+                for admin in admins:
+                    if admin.get('admin_name') == 'Tim':
+                        tim_admin = admin
+                        break
+                
+                if tim_admin and tim_admin.get('admin_user_id'):
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=tim_admin['admin_user_id'],
+                            messages=[TextMessage(text=admin_summary)]
+                        )
+                    )
+                    print(f"✅ 已發送今日學生家長上課提醒結果給管理員 Tim")
+                else:
+                    print(f"⚠️ 找不到管理員 Tim 的 user_id")
+            except Exception as e:
+                print(f"❌ 發送今日學生家長上課提醒結果給管理員 Tim 失敗: {e}")
+        
+        print("✅ 今日學生家長上課提醒完成")
+
+    except Exception as e:
+        print(f"❌ 發送今日學生家長上課提醒失敗: {e}")
+
 def send_parent_reminders():
     """發送學生家長提醒（從行事曆抓取課程資料）"""
     try:
@@ -1770,7 +2042,7 @@ def send_parent_reminders():
                     failed_students = []
                     
                     # 構建家長提醒訊息
-                    parent_message = f"您好，提醒您明天要上課喔\n\n"
+                    parent_message = f"提醒您，明天要上課喔！\n\n"
                     parent_message += f"📚 {course['course_type']}\n"
                     parent_message += f"📅 {tomorrow.strftime('%Y年%m月%d日')}\n"
                     parent_message += f"⏰ {course['start_time']}-{course['end_time']}"
@@ -2583,20 +2855,39 @@ def trigger_tomorrow_check():
 
 @app.route('/api/trigger_parent_reminder')
 def trigger_parent_reminder():
-    """觸發學生家長提醒"""
+    """觸發隔日學生家長提醒"""
     try:
-        print("🎓 觸發學生家長提醒...")
+        print("🎓 觸發隔日學生家長提醒...")
         send_parent_reminders()
         return {
             "success": True, 
-            "message": "學生家長提醒已執行",
+            "message": "隔日學生家長提醒已執行",
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
-        print(f"❌ 觸發學生家長提醒失敗: {e}")
+        print(f"❌ 觸發隔日學生家長提醒失敗: {e}")
         return {
             "success": False, 
-            "message": f"觸發學生家長提醒失敗: {str(e)}",
+            "message": f"觸發隔日學生家長提醒失敗: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.route('/api/trigger_today_parent_reminder')
+def trigger_today_parent_reminder():
+    """觸發今日學生家長上課提醒"""
+    try:
+        print("🎓 觸發今日學生家長上課提醒...")
+        send_today_parent_reminders()
+        return {
+            "success": True, 
+            "message": "今日學生家長上課提醒已執行",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"❌ 觸發今日學生家長上課提醒失敗: {e}")
+        return {
+            "success": False, 
+            "message": f"觸發今日學生家長上課提醒失敗: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
 
@@ -2680,7 +2971,7 @@ def auto_select_teacher():
 
 if __name__ == "__main__":
     # 檢查是否在 Railway 環境中
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5001))
     is_railway = os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PORT")
     
     if is_railway:
@@ -2691,6 +2982,8 @@ if __name__ == "__main__":
         print("   - /api/trigger_tasks - 觸發所有任務")
         print("   - /api/trigger_course_check - 觸發課程檢查")
         print("   - /api/trigger_calendar_upload - 觸發行事曆上傳")
+        print("   - /api/trigger_parent_reminder - 觸發隔日學生家長提醒")
+        print("   - /api/trigger_today_parent_reminder - 觸發今日學生家長上課提醒")
         app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
     else:
         # 本地環境：啟動定時任務和 Flask 應用程式
