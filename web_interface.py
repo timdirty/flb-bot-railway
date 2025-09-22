@@ -1996,24 +1996,6 @@ if __name__ == '__main__':
     # 支援環境變數端口設定
     port = int(os.environ.get("PORT", 8081))
     debug = os.environ.get("RAILWAY_ENVIRONMENT") != "true"
-    
-    # Railway 環境中啟用部分定時任務（排除行事曆上傳和課程檢查）
-    scheduler = None
-    if os.environ.get("RAILWAY_ENVIRONMENT"):
-        scheduler = start_scheduler()
-    
-    if debug:
-        print(f"📱 請在瀏覽器中開啟: http://localhost:{port}")
-    else:
-        print(f"🌐 Web 介面已啟動，端口: {port}")
-    
-    try:
-        app.run(host='0.0.0.0', port=port, debug=debug)
-    except KeyboardInterrupt:
-        if scheduler:
-            print("\n🛑 正在停止定時任務...")
-            scheduler.shutdown()
-            print("✅ 定時任務已停止")
 
 @app.route('/api/admin_mode', methods=['GET'])
 def get_admin_mode():
@@ -2047,3 +2029,22 @@ def toggle_admin_mode():
             "success": False,
             "message": f"切換管理員模式失敗: {str(e)}"
         }, 500
+    
+    # Railway 環境中啟用部分定時任務（排除行事曆上傳和課程檢查）
+    scheduler = None
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        scheduler = start_scheduler()
+    
+    if debug:
+        print(f"📱 請在瀏覽器中開啟: http://localhost:{port}")
+    else:
+        print(f"🌐 Web 介面已啟動，端口: {port}")
+    
+    try:
+        app.run(host='0.0.0.0', port=port, debug=debug)
+    except KeyboardInterrupt:
+        if scheduler:
+            print("\n🛑 正在停止定時任務...")
+            scheduler.shutdown()
+            print("✅ 定時任務已停止")
+
