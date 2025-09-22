@@ -890,22 +890,21 @@ def send_student_reminder(course_info, student_data):
     try:
         if not student_data or 'students' not in student_data:
             print("⚠️ 沒有學生資料可發送提醒")
-            return
+            return [], []
         
         students = student_data['students']
         if not students:
             print("⚠️ 學生列表為空")
-            return
+            return [], []
         
-        # 構建學生家長提醒訊息
-        parent_message = f"📚 課程提醒\n\n"
-        parent_message += f"📅 日期: {course_info['date']}\n"
-        parent_message += f"⏰ 時間: {course_info['start_time']}-{course_info['end_time']}\n"
-        parent_message += f"👨‍🏫 講師: {course_info['teacher']}\n"
-        parent_message += f"📍 地點: {course_info['location']}\n\n"
-        parent_message += f"🎯 課程: {course_info['course_type']}\n\n"
-        parent_message += f"請確認您的孩子明天有課程安排！\n"
-        parent_message += f"如有任何問題，請聯繫講師或管理員。"
+        # 構建簡化的學生家長提醒訊息
+        parent_message = f"您好，提醒您明天要上課喔\n\n"
+        parent_message += f"📚 {course_info['course_type']}\n"
+        parent_message += f"📅 {course_info['date']}\n"
+        parent_message += f"⏰ {course_info['start_time']}-{course_info['end_time']}"
+        
+        success_students = []
+        failed_students = []
         
         # 發送給每位學生的家長
         for student in students:
@@ -915,13 +914,19 @@ def send_student_reminder(course_info, student_data):
                     # 目前先打印訊息內容
                     print(f"📱 發送學生家長提醒給 {student.get('name', '未知')} (UID: {student['uid']})")
                     print(f"訊息內容: {parent_message}")
+                    success_students.append(student.get('name', '未知'))
                 else:
                     print(f"⚠️ 學生 {student.get('name', '未知')} 沒有有效的UID")
+                    failed_students.append(student.get('name', '未知'))
             except Exception as e:
                 print(f"❌ 發送學生家長提醒失敗: {e}")
+                failed_students.append(student.get('name', '未知'))
+        
+        return success_students, failed_students
                 
     except Exception as e:
         print(f"❌ 處理學生家長提醒失敗: {e}")
+        return [], []
 
 def check_cancellation_keywords(title, summary):
     """檢查標題或摘要中是否包含停課關鍵字"""
@@ -1575,6 +1580,9 @@ def check_tomorrow_courses_new():
 
         # 發送學生家長提醒
         print("🎓 開始發送學生家長提醒...")
+        all_success_students = []
+        all_failed_students = []
+        
         for course in tomorrow_courses:
             try:
                 # 檢查是否為停課、代課或體驗課程
@@ -1612,12 +1620,52 @@ def check_tomorrow_courses_new():
                     }
                     
                     # 發送學生家長提醒
-                    send_student_reminder(course_info, student_data)
+                    success_students, failed_students = send_student_reminder(course_info, student_data)
+                    all_success_students.extend(success_students)
+                    all_failed_students.extend(failed_students)
                 else:
                     print(f"⚠️ 無法獲取課程 {course['course_type']} 的學生資料")
                     
             except Exception as e:
                 print(f"❌ 處理課程 {course.get('course_type', '未知')} 的學生家長提醒失敗: {e}")
+        
+        # 發送學生家長提醒結果給管理員Tim
+        if all_success_students or all_failed_students:
+            admin_summary = f"🎓 學生家長提醒結果\n\n"
+            admin_summary += f"📅 日期: {tomorrow.strftime('%Y年%m月%d日')}\n\n"
+            
+            if all_success_students:
+                admin_summary += f"✅ 成功發送給 {len(all_success_students)} 位學生家長:\n"
+                for student in all_success_students:
+                    admin_summary += f"  • {student}\n"
+                admin_summary += "\n"
+            
+            if all_failed_students:
+                admin_summary += f"❌ 發送失敗 {len(all_failed_students)} 位學生家長（沒有user id）:\n"
+                for student in all_failed_students:
+                    admin_summary += f"  • {student}\n"
+            
+            # 發送給管理員Tim
+            try:
+                # 找到Tim的管理員資料
+                tim_admin = None
+                for admin in admins:
+                    if admin.get('admin_name') == 'Tim':
+                        tim_admin = admin
+                        break
+                
+                if tim_admin and tim_admin.get('admin_user_id'):
+                    messaging_api.push_message(
+                        PushMessageRequest(
+                            to=tim_admin['admin_user_id'],
+                            messages=[TextMessage(text=admin_summary)]
+                        )
+                    )
+                    print(f"✅ 已發送學生家長提醒結果給管理員 Tim")
+                else:
+                    print(f"⚠️ 找不到管理員 Tim 的 user_id")
+            except Exception as e:
+                print(f"❌ 發送學生家長提醒結果給管理員 Tim 失敗: {e}")
         
         print("✅ 隔天課程提醒完成")
 
