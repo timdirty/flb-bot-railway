@@ -49,6 +49,9 @@ system_status = {
     "error_count": 0
 }
 
+# 管理員模式設定
+ADMIN_MODE = True  # 預設為管理員模式（測試模式）
+
 # 測試模式設定
 test_mode_config = {
     "test_mode": False  # 預設為正常模式
@@ -2011,3 +2014,36 @@ if __name__ == '__main__':
             print("\n🛑 正在停止定時任務...")
             scheduler.shutdown()
             print("✅ 定時任務已停止")
+
+@app.route('/api/admin_mode', methods=['GET'])
+def get_admin_mode():
+    """獲取管理員模式狀態"""
+    global ADMIN_MODE
+    return {
+        "success": True,
+        "admin_mode": ADMIN_MODE,
+        "message": "管理員模式已開啟" if ADMIN_MODE else "管理員模式已關閉"
+    }
+
+@app.route('/api/admin_mode', methods=['POST'])
+def toggle_admin_mode():
+    """切換管理員模式"""
+    global ADMIN_MODE
+    try:
+        data = request.get_json()
+        new_mode = data.get('admin_mode', not ADMIN_MODE)
+        ADMIN_MODE = new_mode
+        
+        print(f"🔄 管理員模式已{'開啟' if ADMIN_MODE else '關閉'}")
+        
+        return {
+            "success": True,
+            "admin_mode": ADMIN_MODE,
+            "message": "管理員模式已開啟" if ADMIN_MODE else "管理員模式已關閉"
+        }
+    except Exception as e:
+        print(f"❌ 切換管理員模式失敗: {e}")
+        return {
+            "success": False,
+            "message": f"切換管理員模式失敗: {str(e)}"
+        }, 500
