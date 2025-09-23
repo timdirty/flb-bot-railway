@@ -50,7 +50,7 @@ system_status = {
 }
 
 # 管理員模式設定
-ADMIN_MODE = True  # 預設為管理員模式（測試模式）
+ADMIN_MODE = False  # 預設為正常模式
 
 # 測試模式設定
 test_mode_config = {
