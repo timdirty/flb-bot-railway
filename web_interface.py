@@ -61,6 +61,13 @@ def send_line_message(user_id, message_text, message_type="管理員通知"):
     """統一的LINE訊息發送函數"""
     global ADMIN_MODE
     
+    # 檢查是否為家長相關訊息，如果是則只記錄不發送
+    if "家長" in message_type or "學生" in message_type:
+        print(f"📝 [僅記錄] 家長訊息 - {message_type}給 {user_id}")
+        print(f"訊息內容: {message_text}")
+        print(f"ℹ️ 家長訊息已記錄，但不會實際發送")
+        return True
+    
     if ADMIN_MODE:
         # 管理員模式：添加管理員模式標示並發送給管理員
         admin_prefix = "🔧 [管理員模式] "
