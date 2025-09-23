@@ -2370,8 +2370,12 @@
         // 載入管理員模式狀態
         async function loadAdminMode() {
             try {
+                console.log('loadAdminMode 函數被調用');
+                console.log('發送GET請求到 /api/admin_mode');
                 const response = await fetch('/api/admin_mode');
+                console.log('API回應狀態:', response.status);
                 const data = await response.json();
+                console.log('API回應資料:', data);
                 
                 if (data.success) {
                     const adminModeSwitch = document.getElementById('admin-mode-switch');
@@ -2380,8 +2384,10 @@
                     adminModeSwitch.checked = data.admin_mode;
                     adminModeStatus.textContent = data.message;
                     adminModeStatus.className = data.admin_mode ? 'text-warning' : 'text-success';
+                    console.log('管理員模式狀態載入成功');
                 } else {
                     showNotification('載入管理員模式狀態失敗', 'error');
+                    console.log('載入管理員模式狀態失敗');
                 }
             } catch (error) {
                 console.error('載入管理員模式狀態失敗:', error);
@@ -2391,10 +2397,13 @@
 
         // 切換管理員模式
         async function toggleAdminMode() {
+            console.log('toggleAdminMode 函數被調用');
             const adminModeSwitch = document.getElementById('admin-mode-switch');
             const newMode = adminModeSwitch.checked;
+            console.log('新的管理員模式狀態:', newMode);
             
             try {
+                console.log('發送POST請求到 /api/admin_mode');
                 const response = await fetch('/api/admin_mode', {
                     method: 'POST',
                     headers: {
@@ -2405,7 +2414,9 @@
                     })
                 });
                 
+                console.log('API回應狀態:', response.status);
                 const data = await response.json();
+                console.log('API回應資料:', data);
                 
                 if (data.success) {
                     const adminModeStatus = document.getElementById('admin-mode-status');
@@ -2413,10 +2424,12 @@
                     adminModeStatus.className = newMode ? 'text-warning' : 'text-success';
                     
                     showNotification(data.message, 'success');
+                    console.log('管理員模式切換成功');
                 } else {
                     // 如果切換失敗，恢復開關狀態
                     adminModeSwitch.checked = !newMode;
                     showNotification(data.message, 'error');
+                    console.log('管理員模式切換失敗');
                 }
             } catch (error) {
                 console.error('切換管理員模式失敗:', error);
