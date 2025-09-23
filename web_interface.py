@@ -2499,14 +2499,36 @@ def parse_course_info(title, description):
         'signin_url': ''
     }
 
-def get_student_attendance(course_type, period):
-    """獲取學生出勤資料"""
+def get_student_attendance(course, period):
+    """調用Google Apps Script API獲取學生出勤資料"""
     try:
-        from teacher_manager import TeacherManager
-        teacher_manager = TeacherManager()
-        return teacher_manager.get_student_attendance(course_type, period)
+        import requests
+        import json
+        
+        url = "https://script.google.com/macros/s/AKfycbzm0GD-T09Botbs52e8PyeVuA5slJh6Z0AQ7I0uUiGZiE6aWhTO2D0d3XHFrdLNv90uCw/exec"
+        
+        payload = json.dumps({
+            "action": "getRosterAttendance",
+            "course": course,
+            "period": period
+        })
+        headers = {
+            'Content-Type': 'application/json',
+            'Cookie': 'NID=525=nsWVvbAon67C2qpyiEHQA3SUio_GqBd7RqUFU6BwB97_4LHggZxLpDgSheJ7WN4w3Z4dCQBiFPG9YKAqZgAokFYCuuQw04dkm-FX9-XHAIBIqJf1645n3Zrg86GcUVJOf3gN-5eTHXFIaovTmgRC6cXllv82SnQuKsGMq7CHH60XDSwyC99s9P2gmyXLppI'
+        }
+        
+        response = requests.post(url, headers=headers, data=payload, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ 成功獲取學生出勤資料: {course} - {period}")
+            return data
+        else:
+            print(f"❌ 獲取學生出勤資料失敗: {response.status_code} - {response.text}")
+            return None
+            
     except Exception as e:
-        print(f"❌ 獲取學生出勤資料失敗: {e}")
+        print(f"❌ 調用學生出勤API失敗: {e}")
         return None
 
 def load_admin_config():
