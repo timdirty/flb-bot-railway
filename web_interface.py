@@ -57,6 +57,63 @@ test_mode_config = {
     "test_mode": False  # 預設為正常模式
 }
 
+def send_line_message(user_id, message_text, message_type="管理員通知"):
+    """統一的LINE訊息發送函數"""
+    global ADMIN_MODE
+    
+    if ADMIN_MODE:
+        # 管理員模式：添加管理員模式標示並發送給管理員
+        admin_prefix = "🔧 [管理員模式] "
+        admin_message = admin_prefix + message_text
+        print(f"📱 [管理員模式] 發送{message_type}給 {user_id}")
+        print(f"訊息內容: {admin_message}")
+        
+        # 在管理員模式下，仍然要發送給管理員
+        try:
+            from linebot import LineBotApi, WebhookHandler
+            from linebot.exceptions import InvalidSignatureError
+            from linebot.models import MessageEvent, TextMessage, TextSendMessage, PushMessageRequest
+            from linebot import MessagingApi
+            
+            # 初始化 LINE Bot API
+            api_client = MessagingApi(access_token)
+            messaging_api = MessagingApi(api_client)
+            
+            messaging_api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[TextMessage(text=admin_message)]
+                )
+            )
+            print(f"✅ 已發送{message_type}給 {user_id}")
+            return True
+        except Exception as e:
+            print(f"❌ 發送{message_type}給 {user_id} 失敗: {e}")
+            return False
+    else:
+        # 正常模式：實際發送
+        try:
+            from linebot import LineBotApi, WebhookHandler
+            from linebot.exceptions import InvalidSignatureError
+            from linebot.models import MessageEvent, TextMessage, TextSendMessage, PushMessageRequest
+            from linebot import MessagingApi
+            
+            # 初始化 LINE Bot API
+            api_client = MessagingApi(access_token)
+            messaging_api = MessagingApi(api_client)
+            
+            messaging_api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[TextMessage(text=message_text)]
+                )
+            )
+            print(f"✅ 已發送{message_type}給 {user_id}")
+            return True
+        except Exception as e:
+            print(f"❌ 發送{message_type}給 {user_id} 失敗: {e}")
+            return False
+
 # 管理員設定檔案路徑
 ADMIN_CONFIG_FILE = "admin_config.json"
 TEST_MODE_CONFIG_FILE = "test_mode_config.json"
@@ -429,12 +486,7 @@ def api_test_notification():
             try:
                 admin_user_id = admin.get("admin_user_id")
                 if admin_user_id:
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
-                            messages=[TextMessage(text=message)]
-                        )
-                    )
+                    send_line_message(admin_user_id, message, "測試通知")
                     success_count += 1
             except Exception as e:
                 print(f"發送測試通知給 {admin.get('admin_name', '未知')} 失敗: {e}")
@@ -602,12 +654,7 @@ def api_send_admin_notification():
             for admin in admins:
                 if admin.get("admin_user_id") == target_admin_id:
                     try:
-                        messaging_api.push_message(
-                            PushMessageRequest(
-                                to=target_admin_id,
-                                messages=[TextMessage(text=formatted_message)]
-                            )
-                        )
+                        send_line_message(target_admin_id, formatted_message, f"管理員通知給{admin.get('admin_name', '未知')}")
                         success_count = 1
                         break
                     except Exception as e:
@@ -618,12 +665,7 @@ def api_send_admin_notification():
                 try:
                     admin_user_id = admin.get("admin_user_id")
                     if admin_user_id:
-                        messaging_api.push_message(
-                            PushMessageRequest(
-                                to=admin_user_id,
-                                messages=[TextMessage(text=formatted_message)]
-                            )
-                        )
+                        send_line_message(admin_user_id, formatted_message, f"管理員通知給{admin.get('admin_name', '未知')}")
                         success_count += 1
                 except Exception as e:
                     print(f"發送通知給 {admin.get('admin_name', '未知')} 失敗: {e}")
@@ -789,12 +831,7 @@ def api_test_daily_summary():
             try:
                 admin_user_id = admin.get("admin_user_id")
                 if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
-                            messages=[TextMessage(text=summary_message)]
-                        )
-                    )
+                    send_line_message(admin_user_id, summary_message, f"每日摘要測試給{admin.get('admin_name', '未知')}")
                     success_count += 1
                     print(f"✅ 成功發送每日摘要測試給 {admin.get('admin_name', '未知')}")
                 else:
@@ -1052,12 +1089,7 @@ def api_test_course_reminder():
             try:
                 admin_user_id = admin.get("admin_user_id")
                 if admin_user_id and admin_user_id.startswith("U") and len(admin_user_id) > 10:
-                    messaging_api.push_message(
-                        PushMessageRequest(
-                            to=admin_user_id,
-                            messages=[TextMessage(text=reminder_message)]
-                        )
-                    )
+                    send_line_message(admin_user_id, reminder_message, f"課程提醒測試給{admin.get('admin_name', '未知')}")
                     success_count += 1
                     print(f"✅ 成功發送課程提醒測試給 {admin.get('admin_name', '未知')}")
                 else:
