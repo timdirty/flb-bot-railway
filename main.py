@@ -44,12 +44,25 @@ def send_line_message(user_id, message_text, message_type="管理員通知"):
     global ADMIN_MODE
     
     if ADMIN_MODE:
-        # 管理員模式：只記錄不發送，並添加管理員模式標示
+        # 管理員模式：添加管理員模式標示並發送給管理員
         admin_prefix = "🔧 [管理員模式] "
         admin_message = admin_prefix + message_text
-        print(f"📱 [管理員模式] 模擬發送{message_type}給 {user_id}")
+        print(f"📱 [管理員模式] 發送{message_type}給 {user_id}")
         print(f"訊息內容: {admin_message}")
-        return True
+        
+        # 在管理員模式下，仍然要發送給管理員
+        try:
+            messaging_api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[TextMessage(text=admin_message)]
+                )
+            )
+            print(f"✅ 已發送{message_type}給 {user_id}")
+            return True
+        except Exception as e:
+            print(f"❌ 發送{message_type}給 {user_id} 失敗: {e}")
+            return False
     else:
         # 正常模式：實際發送
         try:
