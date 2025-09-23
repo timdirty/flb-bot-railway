@@ -1929,7 +1929,7 @@ def api_update_teacher_management():
 def api_auto_select_teacher():
     """根據使用者 ID 自動選擇講師（與 main.py 中的端點一致）"""
     try:
-        from main import TeacherManager
+        from teacher_manager import TeacherManager
         
         data = request.get_json()
         user_id = data.get('user_id')
