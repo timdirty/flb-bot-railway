@@ -70,13 +70,11 @@ def send_line_message(user_id, message_text, message_type="管理員通知"):
         
         # 在管理員模式下，仍然要發送給管理員
         try:
-            from linebot import LineBotApi, WebhookHandler
-            from linebot.exceptions import InvalidSignatureError
-            from linebot.models import MessageEvent, TextMessage, TextSendMessage, PushMessageRequest
-            from linebot import MessagingApi
+            from linebot.v3.messaging import MessagingApi, ApiClient, Configuration, PushMessageRequest, TextMessage
             
             # 初始化 LINE Bot API
-            api_client = MessagingApi(access_token)
+            configuration = Configuration(access_token=access_token)
+            api_client = ApiClient(configuration)
             messaging_api = MessagingApi(api_client)
             
             messaging_api.push_message(
@@ -93,13 +91,11 @@ def send_line_message(user_id, message_text, message_type="管理員通知"):
     else:
         # 正常模式：實際發送
         try:
-            from linebot import LineBotApi, WebhookHandler
-            from linebot.exceptions import InvalidSignatureError
-            from linebot.models import MessageEvent, TextMessage, TextSendMessage, PushMessageRequest
-            from linebot import MessagingApi
+            from linebot.v3.messaging import MessagingApi, ApiClient, Configuration, PushMessageRequest, TextMessage
             
             # 初始化 LINE Bot API
-            api_client = MessagingApi(access_token)
+            configuration = Configuration(access_token=access_token)
+            api_client = ApiClient(configuration)
             messaging_api = MessagingApi(api_client)
             
             messaging_api.push_message(
