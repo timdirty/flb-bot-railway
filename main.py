@@ -479,6 +479,10 @@ def upload_weekly_calendar_to_sheet():
         if calendar_items:
             print(f"📤 使用批量新增 API 上傳 {len(calendar_items)} 個行事曆項目...")
             
+            # 詳細記錄每個要上傳的項目
+            for i, item in enumerate(calendar_items, 1):
+                print(f"📝 項目 {i}: {item['course']} - {item['teacher']} - {item['time']}")
+            
             payload = json.dumps({
                 "action": "addOrUpdateSchedulesLinkBulk",
                 "items": calendar_items
